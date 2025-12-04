@@ -35,3 +35,58 @@ export interface LevelDetails {
     from_points: number;
     to_points: number;
 }
+
+// Represents a product image attachment
+export interface ProductImage {
+    id: number;
+    url: string;
+    title: string;
+    mime_type?: string;
+}
+
+// Represents a product with basic info (from list endpoint)
+export interface ProductBasic {
+    id: number;
+    name: string;
+    short_description: string;
+    description: string;
+    created_at: string;
+    updated_at: string;
+    thumbnail_id: number | null;
+}
+
+// Represents a product with full details including images
+export interface Product {
+    id: number;
+    name: string;
+    short_description: string;
+    description: string;
+    created_at: string;
+    updated_at: string;
+    featured_image: ProductImage | null;
+    gallery_images: ProductImage[];
+    price: string | null;
+    regular_price: string | null;
+    sale_price: string | null;
+    sku: string | null;
+}
+
+// Pagination info returned with product lists
+export interface ProductPagination {
+    limit: number;
+    offset: number;
+    total: number;
+}
+
+// Response from GET /api/products
+export interface ProductListResponse {
+    products: ProductBasic[];
+    pagination: ProductPagination;
+}
+
+// Response from GET /api/products/:id/images
+export interface ProductImagesResponse {
+    featured_image: ProductImage | null;
+    gallery_images: ProductImage[];
+    all_images: ProductImage[];
+}

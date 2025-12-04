@@ -2,7 +2,10 @@
 <html lang="pl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0D0F12" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>El Colt - Program Lojalnościowy</title>
     
     <!-- Google Fonts -->
@@ -147,6 +150,37 @@
       .stagger-2 { animation-delay: 0.2s; }
       .stagger-3 { animation-delay: 0.3s; }
       .stagger-4 { animation-delay: 0.4s; }
+      
+      /* Safe area padding for mobile devices with notches */
+      .safe-area-bottom {
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      
+      .safe-area-top {
+        padding-top: env(safe-area-inset-top, 0px);
+      }
+      
+      /* Prevent pull-to-refresh on mobile */
+      body {
+        overscroll-behavior-y: contain;
+      }
+      
+      /* Mobile tap highlight removal */
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
+      
+      /* Smooth scrolling on iOS */
+      .scroll-smooth {
+        -webkit-overflow-scrolling: touch;
+      }
+      
+      /* Mobile-specific font sizing */
+      @media (max-width: 640px) {
+        html {
+          font-size: 15px;
+        }
+      }
     </style>
     
   <script type="importmap">

@@ -20,6 +20,7 @@ const REQUIRED_TABLES = [
     { name: 'el1wlr_user_rewards', description: 'Redeemed rewards history', critical: true },
     { name: 'el1wc_order_product_lookup', description: 'Order history', critical: false },
     { name: 'el1posts', description: 'Product information', critical: false },
+    { name: 'el1postmeta', description: 'Product metadata (images, attributes)', critical: false },
     { name: 'el1wdr_order_item_discounts', description: 'Discount tracking (for savings)', critical: false },
     { name: 'el1password_reset_tokens', description: 'Password reset feature', critical: false },
 ];

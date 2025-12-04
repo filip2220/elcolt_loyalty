@@ -39,7 +39,7 @@ const Card: React.FC<CardProps> = React.memo(({
   };
 
   return (
-    <div className={`${baseClasses} ${variantClasses[variant]} p-6 ${className}`}>
+    <div className={`${baseClasses} ${variantClasses[variant]} p-4 sm:p-6 ${className}`}>
       {children}
     </div>
   );

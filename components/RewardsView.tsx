@@ -164,26 +164,26 @@ const RewardsView: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-4 sm:space-y-6 animate-fade-in">
             {/* Header section */}
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4">
                 <div>
-                    <h1 className="font-display text-3xl font-bold text-cream tracking-wide">
+                    <h1 className="font-display text-2xl sm:text-3xl font-bold text-cream tracking-wide">
                         Katalog Nagród
                     </h1>
-                    <p className="text-stone-500 mt-1">Wymień swoje punkty na ekskluzywne nagrody</p>
+                    <p className="text-stone-500 text-sm sm:text-base mt-1">Wymień swoje punkty na ekskluzywne nagrody</p>
                 </div>
                 
                 {/* Points badge */}
-                <div className="flex items-center gap-3 bg-slate-850 border border-slate-700/50 rounded-sm px-4 py-3">
-                    <div className="w-10 h-10 rounded-sm bg-amber-500/10 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <div className="flex items-center gap-3 bg-slate-850 border border-slate-700/50 rounded-sm px-3 sm:px-4 py-2 sm:py-3">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-sm bg-amber-500/10 flex items-center justify-center">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
                     <div>
-                        <p className="text-xs text-stone-500 uppercase tracking-wider">Twój stan konta</p>
-                        <p className="font-mono text-xl font-bold text-amber-500">{formatPolishInteger(points)} <span className="text-stone-500 text-sm font-normal">pkt</span></p>
+                        <p className="text-[10px] sm:text-xs text-stone-500 uppercase tracking-wider">Twój stan konta</p>
+                        <p className="font-mono text-lg sm:text-xl font-bold text-amber-500">{formatPolishInteger(points)} <span className="text-stone-500 text-xs sm:text-sm font-normal">pkt</span></p>
                     </div>
                 </div>
             </div>
@@ -236,7 +236,7 @@ const RewardsView: React.FC = () => {
             )}
 
             {/* Rewards grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {rewards.map((reward, index) => (
                     <div key={reward.id} className={`stagger-${(index % 4) + 1} animate-slide-up`}>
                         <RewardCard

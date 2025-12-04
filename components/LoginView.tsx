@@ -153,7 +153,7 @@ const LoginView: React.FC = () => {
     border border-slate-600/50
     rounded-sm
     text-cream placeholder-stone-500
-    font-body
+    font-body text-base
     transition-all duration-200
     focus:outline-none focus:border-brass-500/50 focus:ring-2 focus:ring-brass-500/20
     disabled:opacity-50 disabled:cursor-not-allowed
@@ -163,7 +163,7 @@ const LoginView: React.FC = () => {
 
   return (
     <>
-      <div className="min-h-screen relative flex flex-col justify-center items-center py-12 px-4">
+      <div className="min-h-screen relative flex flex-col justify-center items-center py-8 sm:py-12 px-3 sm:px-4 safe-area-top">
         <MountainBackground />
         
         {/* Login card */}
@@ -174,7 +174,7 @@ const LoginView: React.FC = () => {
             <div className="absolute -inset-px bg-gradient-to-b from-brass-500/20 via-transparent to-transparent rounded-sm blur-sm" />
             
             {/* Main card */}
-            <div className="relative bg-slate-900/95 backdrop-blur-sm border border-slate-700/50 rounded-sm shadow-2xl shadow-black/50 p-8">
+            <div className="relative bg-slate-900/95 backdrop-blur-sm border border-slate-700/50 rounded-sm shadow-2xl shadow-black/50 p-5 sm:p-8">
               <Logo />
               
               <p className="text-center text-stone-400 mb-8">
@@ -193,8 +193,8 @@ const LoginView: React.FC = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {isSignUp && (
                   <>
-                    <div className="flex gap-4">
-                      <div className="w-1/2">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                      <div className="flex-1">
                         <label className={labelClasses} htmlFor="firstName">Imię</label>
                         <input
                           className={inputClasses}
@@ -205,9 +205,10 @@ const LoginView: React.FC = () => {
                           onChange={(e) => setFirstName(e.target.value)}
                           required
                           disabled={loading}
+                          autoComplete="given-name"
                         />
                       </div>
-                      <div className="w-1/2">
+                      <div className="flex-1">
                         <label className={labelClasses} htmlFor="lastName">Nazwisko</label>
                         <input
                           className={inputClasses}
@@ -218,6 +219,7 @@ const LoginView: React.FC = () => {
                           onChange={(e) => setLastName(e.target.value)}
                           required
                           disabled={loading}
+                          autoComplete="family-name"
                         />
                       </div>
                     </div>
@@ -232,6 +234,7 @@ const LoginView: React.FC = () => {
                         onChange={(e) => setPhone(e.target.value)}
                         required
                         disabled={loading}
+                        autoComplete="tel"
                       />
                     </div>
                   </>
@@ -248,6 +251,8 @@ const LoginView: React.FC = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={loading}
+                    autoComplete="email"
+                    inputMode="email"
                   />
                 </div>
                 
@@ -262,6 +267,7 @@ const LoginView: React.FC = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={loading}
+                    autoComplete={isSignUp ? "new-password" : "current-password"}
                   />
                 </div>
 

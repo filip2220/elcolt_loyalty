@@ -32,13 +32,13 @@ const PointsCard: React.FC = () => {
                 <div className="flex justify-center mb-2">
                     <CompassIcon />
                 </div>
-                <h2 className="font-display text-lg font-semibold text-forest-200 tracking-wide uppercase">
+                <h2 className="font-display text-base sm:text-lg font-semibold text-forest-200 tracking-wide uppercase">
                     Twoje Saldo Punktów
                 </h2>
-                <p className="font-mono text-5xl font-bold mt-3 text-cream tracking-tight">
+                <p className="font-mono text-4xl sm:text-5xl font-bold mt-2 sm:mt-3 text-cream tracking-tight">
                     {formatPolishInteger(points)}
                 </p>
-                <p className="text-forest-300 mt-3 text-sm">
+                <p className="text-forest-300 mt-2 sm:mt-3 text-sm">
                     Rób zakupy, aby zdobyć więcej!
                 </p>
             </div>
@@ -48,14 +48,14 @@ const PointsCard: React.FC = () => {
 
 // Welcome banner with user greeting
 const WelcomeBanner: React.FC<{ userName: string }> = ({ userName }) => (
-    <div className="relative overflow-hidden rounded-sm bg-gradient-to-r from-slate-850 via-slate-900 to-slate-850 border border-slate-700/30 p-6 mb-8">
+    <div className="relative overflow-hidden rounded-sm bg-gradient-to-r from-slate-850 via-slate-900 to-slate-850 border border-slate-700/30 p-4 sm:p-6 mb-6 sm:mb-8">
         {/* Decorative element */}
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-brass-500/5 to-transparent" />
         
         <div className="relative flex items-center justify-between">
             <div>
-                <p className="text-stone-500 text-sm uppercase tracking-wider mb-1">Witaj ponownie</p>
-                <h1 className="font-display text-3xl sm:text-4xl font-bold text-cream tracking-wide">
+                <p className="text-stone-500 text-xs sm:text-sm uppercase tracking-wider mb-1">Witaj ponownie</p>
+                <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold text-cream tracking-wide">
                     {userName}
                 </h1>
             </div>
@@ -75,10 +75,10 @@ const DashboardView: React.FC = () => {
     const { user } = useAuth();
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-4 sm:space-y-6 animate-fade-in">
             <WelcomeBanner userName={user?.name || 'Użytkownik'} />
 
-            <div className="max-w-xl mx-auto space-y-6">
+            <div className="max-w-xl mx-auto space-y-4 sm:space-y-6">
                 <div className="stagger-1 animate-slide-up">
                     <LevelCard />
                 </div>

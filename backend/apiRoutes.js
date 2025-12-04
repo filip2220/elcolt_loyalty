@@ -229,12 +229,35 @@ router.get('/user/points', verifyToken, async (req, res) => {
  */
 router.get('/user/activity', verifyToken, async (req, res) => {
     try {
-        // This query uses a LEFT JOIN to be more resilient. If a product has been
-        // deleted from el1posts, it won't crash the query. Instead, COALESCE
-        // provides a fallback name. This prevents server errors for orders
-        // with deleted products.
+        // WooCommerce uses a separate customer_id in wc_customer_lookup that maps to WordPress user_id.
+        // We need to find the WooCommerce customer_id first, then use it to query orders.
+        const [customerLookup] = await db.query(
+            'SELECT customer_id, email FROM el1wc_customer_lookup WHERE user_id = ?',
+            [req.userId]
+        );
+        
+        // If no WooCommerce customer record exists, try to find by email
+        let wcCustomerId = null;
+        let userEmail = null;
+        
+        if (customerLookup.length > 0) {
+            wcCustomerId = customerLookup[0].customer_id;
+            userEmail = customerLookup[0].email;
+        } else {
+            // Fallback: get email from WordPress users table
+            const [users] = await db.query('SELECT user_email FROM el1users WHERE ID = ?', [req.userId]);
+            if (users.length > 0) {
+                userEmail = users[0].user_email;
+            }
+        }
+        
+        if (!wcCustomerId && !userEmail) {
+            return res.json([]); // No customer record found
+        }
+
+        // Query orders using the WooCommerce customer_id (primary) or billing email (fallback)
         const query = `
-            SELECT 
+            SELECT DISTINCT
                 lookup.order_item_id,
                 lookup.date_created, 
                 lookup.product_qty, 
@@ -242,11 +265,12 @@ router.get('/user/activity', verifyToken, async (req, res) => {
                 COALESCE(posts.post_title, 'Product not found') AS product_name
             FROM el1wc_order_product_lookup AS lookup
             LEFT JOIN el1posts AS posts ON lookup.product_id = posts.ID
-            WHERE lookup.customer_id = ?
+            LEFT JOIN el1postmeta AS pm ON lookup.order_id = pm.post_id AND pm.meta_key = '_billing_email'
+            WHERE lookup.customer_id = ? OR pm.meta_value = ?
             ORDER BY lookup.date_created DESC
-            LIMIT 5;
+            LIMIT 10;
         `;
-        const [activity] = await db.query(query, [req.userId]);
+        const [activity] = await db.query(query, [wcCustomerId || 0, userEmail || '']);
         res.json(activity);
     } catch (error) {
         console.error('Get activity error:', error);
@@ -261,14 +285,38 @@ router.get('/user/activity', verifyToken, async (req, res) => {
  */
 router.get('/user/savings', verifyToken, async (req, res) => {
     try {
-        // PERFORMANCE: Optimized to use a single query with JOIN instead of two separate queries.
-        // This avoids fetching all order IDs first and then querying discounts with a large IN clause.
+        // WooCommerce uses a separate customer_id in wc_customer_lookup that maps to WordPress user_id.
+        const [customerLookup] = await db.query(
+            'SELECT customer_id, email FROM el1wc_customer_lookup WHERE user_id = ?',
+            [req.userId]
+        );
+        
+        let wcCustomerId = null;
+        let userEmail = null;
+        
+        if (customerLookup.length > 0) {
+            wcCustomerId = customerLookup[0].customer_id;
+            userEmail = customerLookup[0].email;
+        } else {
+            // Fallback: get email from WordPress users table
+            const [users] = await db.query('SELECT user_email FROM el1users WHERE ID = ?', [req.userId]);
+            if (users.length > 0) {
+                userEmail = users[0].user_email;
+            }
+        }
+        
+        if (!wcCustomerId && !userEmail) {
+            return res.json({ totalSavings: 0 });
+        }
+
+        // Find savings from orders linked by WooCommerce customer_id OR billing email
         const [savingsResult] = await db.query(
             `SELECT SUM(d.cart_discount) as totalSavings 
              FROM el1wdr_order_item_discounts d
              INNER JOIN el1wc_order_product_lookup o ON d.order_id = o.order_id
-             WHERE o.customer_id = ?`,
-            [req.userId]
+             LEFT JOIN el1postmeta pm ON o.order_id = pm.post_id AND pm.meta_key = '_billing_email'
+             WHERE o.customer_id = ? OR pm.meta_value = ?`,
+            [wcCustomerId || 0, userEmail || '']
         );
 
         // The result of SUM can be null if no rows are found or all values are null. Coalesce to 0.
@@ -574,6 +622,409 @@ router.post('/reset-password', async (req, res) => {
         res.status(500).json({ message: 'Błąd serwera podczas resetowania hasła.' });
     } finally {
         if (connection) connection.release();
+    }
+});
+
+// =====================================================
+// PRODUCT ENDPOINTS
+// =====================================================
+
+/**
+ * GET /api/image-proxy
+ * Proxies images from WordPress to avoid CORS and hosting issues.
+ * Query params: url - The image URL to proxy
+ */
+router.get('/image-proxy', async (req, res) => {
+    const https = require('https');
+    const http = require('http');
+    
+    try {
+        const imageUrl = req.query.url;
+        
+        if (!imageUrl) {
+            return res.status(400).json({ message: 'URL parameter is required' });
+        }
+
+        // Validate URL
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(imageUrl);
+        } catch {
+            return res.status(400).json({ message: 'Invalid URL' });
+        }
+
+        // Choose http or https based on URL protocol
+        const client = parsedUrl.protocol === 'https:' ? https : http;
+
+        const options = {
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+            },
+        };
+
+        const proxyRequest = client.request(options, (proxyResponse) => {
+            // Handle redirects
+            if (proxyResponse.statusCode >= 300 && proxyResponse.statusCode < 400 && proxyResponse.headers.location) {
+                // Redirect - follow it
+                const redirectUrl = proxyResponse.headers.location;
+                res.redirect(`/api/image-proxy?url=${encodeURIComponent(redirectUrl)}`);
+                return;
+            }
+
+            if (proxyResponse.statusCode !== 200) {
+                console.error(`Image proxy failed for ${imageUrl}: ${proxyResponse.statusCode}`);
+                res.status(proxyResponse.statusCode).json({ message: 'Failed to fetch image' });
+                return;
+            }
+
+            // Set response headers
+            const contentType = proxyResponse.headers['content-type'] || 'image/jpeg';
+            res.set('Content-Type', contentType);
+            res.set('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+            res.set('Access-Control-Allow-Origin', '*');
+
+            // Pipe the image data directly to response
+            proxyResponse.pipe(res);
+        });
+
+        proxyRequest.on('error', (error) => {
+            console.error('Image proxy request error:', error);
+            res.status(500).json({ message: 'Error fetching image' });
+        });
+
+        proxyRequest.end();
+
+    } catch (error) {
+        console.error('Image proxy error:', error);
+        res.status(500).json({ message: 'Error proxying image' });
+    }
+});
+
+/**
+ * GET /api/debug/images/:productId
+ * Debug endpoint to check image data for a product.
+ * Returns raw database data for troubleshooting image loading issues.
+ */
+router.get('/debug/images/:productId', async (req, res) => {
+    try {
+        const productId = parseInt(req.params.productId);
+        
+        // Get WordPress site URL from options
+        const [siteUrlResult] = await db.query(
+            "SELECT option_value FROM el1options WHERE option_name = 'siteurl' LIMIT 1"
+        );
+        const [homeUrlResult] = await db.query(
+            "SELECT option_value FROM el1options WHERE option_name = 'home' LIMIT 1"
+        );
+        
+        // Get thumbnail ID
+        const [thumbnailMeta] = await db.query(
+            "SELECT meta_value FROM el1postmeta WHERE post_id = ? AND meta_key = '_thumbnail_id'",
+            [productId]
+        );
+        
+        let imageData = null;
+        let attachmentMeta = null;
+        
+        if (thumbnailMeta.length > 0 && thumbnailMeta[0].meta_value) {
+            const thumbnailId = parseInt(thumbnailMeta[0].meta_value);
+            
+            // Get the attachment post
+            const [attachment] = await db.query(
+                "SELECT ID, guid, post_title, post_mime_type FROM el1posts WHERE ID = ?",
+                [thumbnailId]
+            );
+            
+            // Get attachment metadata
+            const [meta] = await db.query(
+                "SELECT meta_key, meta_value FROM el1postmeta WHERE post_id = ? AND meta_key IN ('_wp_attached_file', '_wp_attachment_metadata')",
+                [thumbnailId]
+            );
+            
+            imageData = attachment[0] || null;
+            attachmentMeta = meta;
+        }
+        
+        res.json({
+            product_id: productId,
+            wordpress_config: {
+                siteurl: siteUrlResult[0]?.option_value || 'NOT FOUND',
+                home: homeUrlResult[0]?.option_value || 'NOT FOUND'
+            },
+            thumbnail_id: thumbnailMeta[0]?.meta_value || null,
+            image_data: imageData,
+            attachment_meta: attachmentMeta
+        });
+    } catch (error) {
+        console.error('Debug images error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/products
+ * Returns a list of all published products with basic info.
+ * Public: No authentication required.
+ * Query params:
+ *   - limit: Number of products to return (default 20, max 100)
+ *   - offset: Pagination offset (default 0)
+ */
+router.get('/products', async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+        const offset = parseInt(req.query.offset) || 0;
+
+        const query = `
+            SELECT 
+                p.ID as id,
+                p.post_title as name,
+                p.post_excerpt as short_description,
+                p.post_content as description,
+                p.post_date as created_at,
+                p.post_modified as updated_at,
+                (SELECT pm.meta_value FROM el1postmeta pm WHERE pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id' LIMIT 1) as thumbnail_id
+            FROM el1posts p
+            WHERE p.post_type = 'product' 
+              AND p.post_status = 'publish'
+            ORDER BY p.post_date DESC
+            LIMIT ? OFFSET ?
+        `;
+        
+        const [products] = await db.query(query, [limit, offset]);
+        
+        // Get total count for pagination
+        const [countResult] = await db.query(
+            "SELECT COUNT(*) as total FROM el1posts WHERE post_type = 'product' AND post_status = 'publish'"
+        );
+        
+        res.json({
+            products,
+            pagination: {
+                limit,
+                offset,
+                total: parseInt(countResult[0].total)
+            }
+        });
+    } catch (error) {
+        console.error('Get products error:', error);
+        res.status(500).json({ message: 'Błąd serwera podczas pobierania produktów.' });
+    }
+});
+
+/**
+ * GET /api/products/:id
+ * Returns a single product with full details including images.
+ * Public: No authentication required.
+ */
+router.get('/products/:id', async (req, res) => {
+    try {
+        const productId = parseInt(req.params.id);
+        
+        if (!productId || isNaN(productId)) {
+            return res.status(400).json({ message: 'Nieprawidłowe ID produktu.' });
+        }
+
+        // Get product basic info
+        const [products] = await db.query(`
+            SELECT 
+                p.ID as id,
+                p.post_title as name,
+                p.post_excerpt as short_description,
+                p.post_content as description,
+                p.post_date as created_at,
+                p.post_modified as updated_at
+            FROM el1posts p
+            WHERE p.ID = ? 
+              AND p.post_type = 'product' 
+              AND p.post_status = 'publish'
+        `, [productId]);
+
+        if (products.length === 0) {
+            return res.status(404).json({ message: 'Nie znaleziono produktu.' });
+        }
+
+        const product = products[0];
+
+        // Get featured image (thumbnail)
+        const [thumbnailMeta] = await db.query(`
+            SELECT meta_value 
+            FROM el1postmeta 
+            WHERE post_id = ? AND meta_key = '_thumbnail_id'
+        `, [productId]);
+
+        let featuredImage = null;
+        if (thumbnailMeta.length > 0 && thumbnailMeta[0].meta_value) {
+            const thumbnailId = parseInt(thumbnailMeta[0].meta_value);
+            const [imageData] = await db.query(`
+                SELECT 
+                    p.ID as id,
+                    p.guid as url,
+                    p.post_title as title,
+                    (SELECT meta_value FROM el1postmeta WHERE post_id = p.ID AND meta_key = '_wp_attachment_metadata' LIMIT 1) as metadata
+                FROM el1posts p
+                WHERE p.ID = ? AND p.post_type = 'attachment'
+            `, [thumbnailId]);
+            
+            if (imageData.length > 0) {
+                featuredImage = {
+                    id: imageData[0].id,
+                    url: imageData[0].url,
+                    title: imageData[0].title
+                };
+            }
+        }
+
+        // Get gallery images
+        const [galleryMeta] = await db.query(`
+            SELECT meta_value 
+            FROM el1postmeta 
+            WHERE post_id = ? AND meta_key = '_product_image_gallery'
+        `, [productId]);
+
+        let galleryImages = [];
+        if (galleryMeta.length > 0 && galleryMeta[0].meta_value) {
+            const galleryIds = galleryMeta[0].meta_value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            
+            if (galleryIds.length > 0) {
+                const placeholders = galleryIds.map(() => '?').join(',');
+                const [images] = await db.query(`
+                    SELECT 
+                        p.ID as id,
+                        p.guid as url,
+                        p.post_title as title
+                    FROM el1posts p
+                    WHERE p.ID IN (${placeholders}) AND p.post_type = 'attachment'
+                `, galleryIds);
+                
+                galleryImages = images;
+            }
+        }
+
+        // Get price info from postmeta
+        const [priceMeta] = await db.query(`
+            SELECT meta_key, meta_value 
+            FROM el1postmeta 
+            WHERE post_id = ? AND meta_key IN ('_regular_price', '_sale_price', '_price', '_sku')
+        `, [productId]);
+
+        const priceInfo = {};
+        priceMeta.forEach(meta => {
+            const key = meta.meta_key.replace('_', '');
+            priceInfo[key] = meta.meta_value;
+        });
+
+        res.json({
+            ...product,
+            featured_image: featuredImage,
+            gallery_images: galleryImages,
+            price: priceInfo.price || null,
+            regular_price: priceInfo.regular_price || null,
+            sale_price: priceInfo.sale_price || null,
+            sku: priceInfo.sku || null
+        });
+
+    } catch (error) {
+        console.error('Get product error:', error);
+        res.status(500).json({ message: 'Błąd serwera podczas pobierania produktu.' });
+    }
+});
+
+/**
+ * GET /api/products/:id/images
+ * Returns all images for a specific product.
+ * Public: No authentication required.
+ */
+router.get('/products/:id/images', async (req, res) => {
+    try {
+        const productId = parseInt(req.params.id);
+        
+        if (!productId || isNaN(productId)) {
+            return res.status(400).json({ message: 'Nieprawidłowe ID produktu.' });
+        }
+
+        // Verify product exists
+        const [products] = await db.query(`
+            SELECT ID FROM el1posts 
+            WHERE ID = ? AND post_type = 'product' AND post_status = 'publish'
+        `, [productId]);
+
+        if (products.length === 0) {
+            return res.status(404).json({ message: 'Nie znaleziono produktu.' });
+        }
+
+        // Get featured image
+        const [thumbnailMeta] = await db.query(`
+            SELECT meta_value 
+            FROM el1postmeta 
+            WHERE post_id = ? AND meta_key = '_thumbnail_id'
+        `, [productId]);
+
+        // Get gallery images
+        const [galleryMeta] = await db.query(`
+            SELECT meta_value 
+            FROM el1postmeta 
+            WHERE post_id = ? AND meta_key = '_product_image_gallery'
+        `, [productId]);
+
+        // Collect all image IDs
+        const imageIds = [];
+        
+        if (thumbnailMeta.length > 0 && thumbnailMeta[0].meta_value) {
+            imageIds.push(parseInt(thumbnailMeta[0].meta_value));
+        }
+        
+        if (galleryMeta.length > 0 && galleryMeta[0].meta_value) {
+            const galleryIds = galleryMeta[0].meta_value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            imageIds.push(...galleryIds);
+        }
+
+        if (imageIds.length === 0) {
+            return res.json({ 
+                featured_image: null, 
+                gallery_images: [],
+                all_images: []
+            });
+        }
+
+        // Fetch all images in one query
+        const uniqueImageIds = [...new Set(imageIds)];
+        const placeholders = uniqueImageIds.map(() => '?').join(',');
+        const [images] = await db.query(`
+            SELECT 
+                p.ID as id,
+                p.guid as url,
+                p.post_title as title,
+                p.post_mime_type as mime_type
+            FROM el1posts p
+            WHERE p.ID IN (${placeholders}) AND p.post_type = 'attachment'
+        `, uniqueImageIds);
+
+        // Create a map for quick lookup
+        const imageMap = {};
+        images.forEach(img => { imageMap[img.id] = img; });
+
+        // Separate featured and gallery
+        const featuredId = thumbnailMeta.length > 0 ? parseInt(thumbnailMeta[0].meta_value) : null;
+        const featuredImage = featuredId && imageMap[featuredId] ? imageMap[featuredId] : null;
+        
+        const galleryIds = galleryMeta.length > 0 && galleryMeta[0].meta_value 
+            ? galleryMeta[0].meta_value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
+            : [];
+        const galleryImages = galleryIds.map(id => imageMap[id]).filter(Boolean);
+
+        res.json({
+            featured_image: featuredImage,
+            gallery_images: galleryImages,
+            all_images: images
+        });
+
+    } catch (error) {
+        console.error('Get product images error:', error);
+        res.status(500).json({ message: 'Błąd serwera podczas pobierania zdjęć produktu.' });
     }
 });
 

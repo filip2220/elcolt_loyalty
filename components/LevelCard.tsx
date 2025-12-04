@@ -105,9 +105,9 @@ const LevelCard: React.FC = React.memo(() => {
         const pointsToNextLevel = nextLevel.from_points - points;
 
         progressElement = (
-            <div className="mt-6" aria-live="polite">
+            <div className="mt-4 sm:mt-6" aria-live="polite">
                 {/* Progress labels */}
-                <div className="flex justify-between items-center text-xs mb-2 px-1">
+                <div className="flex justify-between items-center text-[10px] sm:text-xs mb-2 px-1">
                     <span className="font-display font-semibold text-stone-400 uppercase tracking-wider">
                         {currentLevel.name}
                     </span>
@@ -118,7 +118,7 @@ const LevelCard: React.FC = React.memo(() => {
                 
                 {/* Progress bar container */}
                 <div
-                    className="relative w-full h-3 bg-slate-800 rounded-full border border-slate-700/50 overflow-hidden"
+                    className="relative w-full h-2.5 sm:h-3 bg-slate-800 rounded-full border border-slate-700/50 overflow-hidden"
                     role="progressbar"
                     aria-valuenow={progressPercentage}
                     aria-valuemin={0}
@@ -138,7 +138,7 @@ const LevelCard: React.FC = React.memo(() => {
                 </div>
                 
                 {/* Points needed message */}
-                <p className="text-center text-sm text-stone-400 mt-3">
+                <p className="text-center text-xs sm:text-sm text-stone-400 mt-2 sm:mt-3">
                     {pointsToNextLevel > 0 ? (
                         <>
                             Jeszcze <span className="font-mono font-semibold text-brass-500">{formatPolishInteger(pointsToNextLevel)}</span> punktów do <span className="text-cream">{nextLevel.name}</span>
@@ -165,25 +165,25 @@ const LevelCard: React.FC = React.memo(() => {
     return (
         <Card variant="bordered" className="relative overflow-hidden">
             {/* Decorative corner accents */}
-            <div className="absolute top-0 left-0 w-8 h-8 border-l-2 border-t-2 border-brass-500/30 rounded-tl-sm" />
-            <div className="absolute top-0 right-0 w-8 h-8 border-r-2 border-t-2 border-brass-500/30 rounded-tr-sm" />
-            <div className="absolute bottom-0 left-0 w-8 h-8 border-l-2 border-b-2 border-brass-500/30 rounded-bl-sm" />
-            <div className="absolute bottom-0 right-0 w-8 h-8 border-r-2 border-b-2 border-brass-500/30 rounded-br-sm" />
+            <div className="absolute top-0 left-0 w-6 h-6 sm:w-8 sm:h-8 border-l-2 border-t-2 border-brass-500/30 rounded-tl-sm" />
+            <div className="absolute top-0 right-0 w-6 h-6 sm:w-8 sm:h-8 border-r-2 border-t-2 border-brass-500/30 rounded-tr-sm" />
+            <div className="absolute bottom-0 left-0 w-6 h-6 sm:w-8 sm:h-8 border-l-2 border-b-2 border-brass-500/30 rounded-bl-sm" />
+            <div className="absolute bottom-0 right-0 w-6 h-6 sm:w-8 sm:h-8 border-r-2 border-b-2 border-brass-500/30 rounded-br-sm" />
             
             <div className="relative text-center">
                 {/* Badge and title */}
-                <div className="flex flex-col items-center mb-4">
+                <div className="flex flex-col items-center mb-3 sm:mb-4">
                     <RankBadge levelName={displayName} />
-                    <h2 className="font-display text-sm font-semibold text-brass-400 tracking-widest uppercase mt-4">
+                    <h2 className="font-display text-xs sm:text-sm font-semibold text-brass-400 tracking-widest uppercase mt-3 sm:mt-4">
                         Poziom Lojalnościowy
                     </h2>
                 </div>
 
                 {/* Level name */}
-                <p className="font-display text-4xl font-bold text-cream tracking-wide">
+                <p className="font-display text-3xl sm:text-4xl font-bold text-cream tracking-wide">
                     {displayName}
                 </p>
-                <p className="text-stone-500 mt-2 text-sm">
+                <p className="text-stone-500 mt-2 text-xs sm:text-sm">
                     Twój aktualny status w programie
                 </p>
             </div>

@@ -51,23 +51,26 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen, onClo
         border border-slate-600/50
         rounded-sm
         text-cream placeholder-stone-500
-        font-body
+        font-body text-base
         transition-all duration-200
         focus:outline-none focus:border-brass-500/50 focus:ring-2 focus:ring-brass-500/20
         disabled:opacity-50 disabled:cursor-not-allowed
     `;
 
     return (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-            <div className="relative w-full max-w-md animate-slide-up">
-                {/* Glow effect */}
-                <div className="absolute -inset-px bg-gradient-to-b from-brass-500/20 via-transparent to-transparent rounded-sm blur-sm" />
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4 animate-fade-in">
+            <div className="relative w-full sm:max-w-md animate-slide-up">
+                {/* Glow effect - only on desktop */}
+                <div className="hidden sm:block absolute -inset-px bg-gradient-to-b from-brass-500/20 via-transparent to-transparent rounded-sm blur-sm" />
                 
                 {/* Modal content */}
-                <div className="relative bg-slate-900/95 backdrop-blur-sm border border-slate-700/50 rounded-sm shadow-2xl shadow-black/50 p-6">
-                    <div className="flex justify-between items-start mb-6">
+                <div className="relative bg-slate-900/95 backdrop-blur-sm border-t sm:border border-slate-700/50 rounded-t-xl sm:rounded-sm shadow-2xl shadow-black/50 p-5 sm:p-6">
+                    {/* Mobile drag handle */}
+                    <div className="sm:hidden w-12 h-1 bg-slate-600 rounded-full mx-auto mb-4" />
+                    
+                    <div className="flex justify-between items-start mb-5 sm:mb-6">
                         <div>
-                            <h2 className="font-display text-2xl font-bold text-cream tracking-wide">
+                            <h2 className="font-display text-xl sm:text-2xl font-bold text-cream tracking-wide">
                                 Resetuj Hasło
                             </h2>
                             <p className="text-stone-500 text-sm mt-1">
@@ -76,7 +79,7 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen, onClo
                         </div>
                         <button
                             onClick={handleClose}
-                            className="text-stone-500 hover:text-cream transition-colors p-1 -mr-1 -mt-1"
+                            className="text-stone-500 hover:text-cream active:text-cream transition-colors p-2 -mr-2 -mt-2"
                             disabled={loading}
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -104,7 +107,7 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen, onClo
                     )}
 
                     <form onSubmit={handleSubmit}>
-                        <div className="mb-6">
+                        <div className="mb-5 sm:mb-6">
                             <label className="block text-stone-300 text-sm font-semibold mb-2 tracking-wide" htmlFor="reset-email">
                                 Adres Email
                             </label>
@@ -117,10 +120,12 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen, onClo
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
                                 disabled={loading || !!success}
+                                inputMode="email"
+                                autoComplete="email"
                             />
                         </div>
 
-                        <div className="flex gap-3">
+                        <div className="flex flex-col-reverse sm:flex-row gap-3">
                             <Button
                                 type="button"
                                 onClick={handleClose}

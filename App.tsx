@@ -6,9 +6,10 @@ import DashboardView from './components/DashboardView';
 import Header from './components/Header';
 import ActivityView from './components/ActivityView';
 import RewardsView from './components/RewardsView';
+import ProductsView from './components/ProductsView';
 import ResetPasswordView from './components/ResetPasswordView';
 
-export type View = 'dashboard' | 'activity' | 'rewards';
+export type View = 'dashboard' | 'activity' | 'rewards' | 'products';
 
 const AppContent: React.FC = () => {
     const { isAuthenticated, user } = useAuth();
@@ -24,6 +25,8 @@ const AppContent: React.FC = () => {
                 return <ActivityView />;
             case 'rewards':
                 return <RewardsView />;
+            case 'products':
+                return <ProductsView />;
             case 'dashboard':
             default:
                 return <DashboardView />;
@@ -38,7 +41,7 @@ const AppContent: React.FC = () => {
             {/* Content */}
             <div className="relative z-10">
                 <Header activeView={activeView} setActiveView={setActiveView} />
-                <main className="p-4 sm:p-6 lg:p-8">
+                <main className="p-3 sm:p-6 lg:p-8 pb-24 md:pb-8">
                     <div className="max-w-7xl mx-auto">
                         {renderView()}
                     </div>

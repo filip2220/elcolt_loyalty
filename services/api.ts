@@ -1,5 +1,5 @@
 // FIX: Import the Reward type to use in the getRewards function.
-import { User, OrderActivity, Level, LevelDetails, Reward } from '../types';
+import { User, OrderActivity, Level, LevelDetails, Reward, Product, ProductListResponse, ProductImagesResponse } from '../types';
 
 // The base URL for your backend API.
 // This is now configurable via environment variables for different environments:
@@ -149,5 +149,45 @@ export const resetPassword = async (token: string, newPassword: string): Promise
     body: JSON.stringify({ token, newPassword }),
   });
   return handleResponse(response);
+};
+
+// =====================================================
+// PRODUCT API FUNCTIONS
+// =====================================================
+
+/**
+ * Get a paginated list of products with basic info
+ * @param limit - Number of products to return (default 20, max 100)
+ * @param offset - Pagination offset (default 0)
+ */
+export const getProducts = async (limit: number = 20, offset: number = 0): Promise<ProductListResponse> => {
+  const response = await fetch(`${API_BASE_URL}/products?limit=${limit}&offset=${offset}`);
+  return handleResponse(response);
+};
+
+/**
+ * Get a single product with full details including images and price
+ * @param productId - The product ID
+ */
+export const getProduct = async (productId: number): Promise<Product> => {
+  const response = await fetch(`${API_BASE_URL}/products/${productId}`);
+  return handleResponse(response);
+};
+
+/**
+ * Get all images for a specific product
+ * @param productId - The product ID
+ */
+export const getProductImages = async (productId: number): Promise<ProductImagesResponse> => {
+  const response = await fetch(`${API_BASE_URL}/products/${productId}/images`);
+  return handleResponse(response);
+};
+
+/**
+ * Get a proxied image URL to bypass CORS/hosting issues
+ * @param originalUrl - The original image URL from WordPress
+ */
+export const getProxiedImageUrl = (originalUrl: string): string => {
+  return `${API_BASE_URL}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
 };
 

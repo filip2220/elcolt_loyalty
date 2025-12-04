@@ -55,10 +55,10 @@ const TotalSavingsCard: React.FC = () => {
 
         return (
             <>
-                <p className="font-mono text-4xl font-bold text-cream tracking-tight">
+                <p className="font-mono text-3xl sm:text-4xl font-bold text-cream tracking-tight">
                     {formatPolishCurrency(savings)}
                 </p>
-                <p className="text-olive-400 mt-2 text-sm">
+                <p className="text-olive-400 mt-2 text-xs sm:text-sm">
                     zaoszczędzone z kuponów i zniżek
                 </p>
             </>
@@ -85,7 +85,7 @@ const TotalSavingsCard: React.FC = () => {
                 <div className="flex justify-center items-center mb-2">
                     <SavingsIcon />
                 </div>
-                <h2 className="font-display text-sm font-semibold text-olive-400 tracking-widest uppercase mb-3">
+                <h2 className="font-display text-xs sm:text-sm font-semibold text-olive-400 tracking-widest uppercase mb-2 sm:mb-3">
                     Całkowite Oszczędności
                 </h2>
                 {renderContent()}
