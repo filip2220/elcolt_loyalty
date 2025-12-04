@@ -6,20 +6,23 @@ import Card from './Card';
 import Spinner from './Spinner';
 import { formatPolishDate, formatPolishCurrency } from '../utils/format';
 
-const ActivityItem: React.FC<{ item: OrderActivity }> = ({ item }) => {
+const ActivityItem: React.FC<{ item: OrderActivity; isLast: boolean }> = ({ item, isLast }) => {
     const date = new Date(item.date_created);
     const formattedDate = formatPolishDate(date);
 
     return (
-        <li className="flex justify-between items-center py-3">
+        <li className={`
+            flex justify-between items-center py-3
+            ${!isLast ? 'border-b border-slate-800/50' : ''}
+        `}>
             <div>
-                <p className="font-semibold text-gray-200">{item.product_name}</p>
-                <p className="text-sm text-gray-400">
-                    {formattedDate} &bull; Ilość: {item.product_qty}
+                <p className="font-semibold text-cream">{item.product_name}</p>
+                <p className="text-sm text-stone-500 mt-0.5">
+                    {formattedDate} • Ilość: {item.product_qty}
                 </p>
             </div>
             <div className="text-right">
-                <p className="font-semibold text-green-500">
+                <p className="font-mono font-semibold text-forest-500">
                     {formatPolishCurrency(item.product_gross_revenue)}
                 </p>
             </div>
@@ -58,17 +61,28 @@ const ActivityCard: React.FC = () => {
         }
 
         if (error) {
-            return <p className="text-center text-red-400 py-4">{error}</p>;
+            return <p className="text-center text-rust-500 py-4 text-sm">{error}</p>;
         }
 
         if (activity.length === 0) {
-            return <p className="text-center text-gray-400 py-4">Nie znaleziono ostatnich zakupów.</p>;
+            return (
+                <div className="flex flex-col items-center justify-center py-8 gap-2">
+                    <svg className="w-10 h-10 text-stone-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    <p className="text-stone-500 text-sm">Nie znaleziono ostatnich zakupów</p>
+                </div>
+            );
         }
 
         return (
-            <ul className="divide-y divide-gray-800">
-                {activity.map((item) => (
-                    <ActivityItem key={item.order_item_id} item={item} />
+            <ul>
+                {activity.map((item, index) => (
+                    <ActivityItem 
+                        key={item.order_item_id} 
+                        item={item} 
+                        isLast={index === activity.length - 1}
+                    />
                 ))}
             </ul>
         );
@@ -76,7 +90,9 @@ const ActivityCard: React.FC = () => {
 
     return (
         <Card>
-            <h2 className="text-lg font-semibold text-gray-200 mb-4 border-b border-gray-700 pb-3">Ostatnia Aktywność</h2>
+            <h2 className="font-display text-lg font-semibold text-cream tracking-wide mb-4 pb-3 border-b border-slate-800/50">
+                Ostatnia Aktywność
+            </h2>
             {renderContent()}
         </Card>
     );

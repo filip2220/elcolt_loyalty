@@ -5,6 +5,20 @@ import Card from './Card';
 import Spinner from './Spinner';
 import { formatPolishCurrency } from '../utils/format';
 
+// Savings/wallet icon
+const SavingsIcon = () => (
+    <svg className="w-10 h-10" viewBox="0 0 40 40" fill="none">
+        {/* Coin stack representation */}
+        <ellipse cx="20" cy="28" rx="12" ry="4" className="text-olive-500 fill-current opacity-40" />
+        <ellipse cx="20" cy="24" rx="12" ry="4" className="text-olive-500 fill-current opacity-50" />
+        <ellipse cx="20" cy="20" rx="12" ry="4" className="text-olive-500 fill-current opacity-60" />
+        <ellipse cx="20" cy="16" rx="12" ry="4" className="text-olive-400 fill-current opacity-70" />
+        <ellipse cx="20" cy="12" rx="12" ry="4" className="text-olive-400 fill-current" />
+        {/* Dollar sign on top coin */}
+        <text x="20" y="15" textAnchor="middle" className="text-olive-600 fill-current" fontSize="8" fontWeight="bold">PLN</text>
+    </svg>
+);
+
 const TotalSavingsCard: React.FC = () => {
     const { token } = useAuth();
     const [savings, setSavings] = useState<number>(0);
@@ -36,30 +50,46 @@ const TotalSavingsCard: React.FC = () => {
         }
 
         if (error) {
-            return <p className="text-center text-red-400 py-4">{error}</p>;
+            return <p className="text-center text-rust-500 py-4 text-sm">{error}</p>;
         }
 
         return (
             <>
-                <p className="text-5xl font-bold mt-2">
+                <p className="font-mono text-4xl font-bold text-cream tracking-tight">
                     {formatPolishCurrency(savings)}
                 </p>
-                <p className="text-teal-300 mt-2">z kuponów i zniżek.</p>
+                <p className="text-olive-400 mt-2 text-sm">
+                    zaoszczędzone z kuponów i zniżek
+                </p>
             </>
         );
     };
 
     return (
-        <Card className="bg-teal-800 text-white border-teal-600 text-center">
-            <div className="flex justify-center items-center mb-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-teal-300 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                    <path d="M10 4a1 1 0 011 1v1.018a3.003 3.003 0 012.52 2.45l.23.002a2.5 2.5 0 012.25 2.499V12a1 1 0 11-2 0v-.03a.5.5 0 00-.5-.499l-.23-.002A3.003 3.003 0 0110.518 9H10a1 1 0 01-1-1V5a1 1 0 011-1zM9 11a1 1 0 011-1h.018A3.003 3.003 0 0112.47 7.55l.23-.002a2.5 2.5 0 012.25 2.499V12a1 1 0 11-2 0v-.03a.5.5 0 00-.5-.499l-.23-.002A3.003 3.003 0 018.518 9H8a1 1 0 011 1z" opacity="0.5" />
-                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-8a1 1 0 011-1h.018a3.003 3.003 0 012.52 2.45l.23.002a2.5 2.5 0 012.25 2.499V14a1 1 0 11-2 0v-.03a.5.5 0 00-.5-.499l-.23-.002A3.003 3.003 0 0110.518 11H10a1 1 0 01-1-1z" opacity="0.5" />
-                </svg>
-                <h2 className="text-lg font-semibold text-teal-200">Całkowite Oszczędności</h2>
+        <Card className="relative overflow-hidden bg-gradient-to-br from-olive-600/20 via-slate-900 to-slate-900 border-olive-600/30">
+            {/* Decorative pattern */}
+            <div 
+                className="absolute inset-0 opacity-5"
+                style={{
+                    backgroundImage: `repeating-linear-gradient(
+                        45deg,
+                        transparent,
+                        transparent 10px,
+                        rgba(110, 125, 64, 0.5) 10px,
+                        rgba(110, 125, 64, 0.5) 11px
+                    )`,
+                }}
+            />
+            
+            <div className="relative text-center">
+                <div className="flex justify-center items-center mb-2">
+                    <SavingsIcon />
+                </div>
+                <h2 className="font-display text-sm font-semibold text-olive-400 tracking-widest uppercase mb-3">
+                    Całkowite Oszczędności
+                </h2>
+                {renderContent()}
             </div>
-            {renderContent()}
         </Card>
     );
 };

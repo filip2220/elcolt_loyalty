@@ -25,7 +25,6 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen, onClo
             setSuccess(result.message);
             setEmail('');
 
-            // Auto-close modal after 3 seconds on success
             setTimeout(() => {
                 onClose();
                 setSuccess(null);
@@ -46,71 +45,101 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen, onClo
 
     if (!isOpen) return null;
 
+    const inputClasses = `
+        w-full py-3 px-4
+        bg-slate-800/80 
+        border border-slate-600/50
+        rounded-sm
+        text-cream placeholder-stone-500
+        font-body
+        transition-all duration-200
+        focus:outline-none focus:border-brass-500/50 focus:ring-2 focus:ring-brass-500/20
+        disabled:opacity-50 disabled:cursor-not-allowed
+    `;
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-w-md w-full p-6">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold text-gray-100">Zapomniałeś hasła?</h2>
-                    <button
-                        onClick={handleClose}
-                        className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
-                        disabled={loading}
-                    >
-                        ×
-                    </button>
-                </div>
-
-                <p className="text-gray-400 mb-6">
-                    Podaj swój adres email, a wyślemy Ci link do resetowania hasła.
-                </p>
-
-                {error && (
-                    <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-md mb-4" role="alert">
-                        <p>{error}</p>
-                    </div>
-                )}
-
-                {success && (
-                    <div className="bg-green-900/50 border border-green-700 text-green-300 px-4 py-3 rounded-md mb-4" role="alert">
-                        <p>{success}</p>
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit}>
-                    <div className="mb-6">
-                        <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="reset-email">
-                            Adres Email
-                        </label>
-                        <input
-                            className="shadow-sm appearance-none border border-gray-600 bg-gray-800 rounded w-full py-3 px-4 text-gray-200 leading-tight focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            id="reset-email"
-                            type="email"
-                            placeholder="twoj@email.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            disabled={loading || !!success}
-                        />
-                    </div>
-
-                    <div className="flex gap-3">
-                        <Button
-                            type="button"
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+            <div className="relative w-full max-w-md animate-slide-up">
+                {/* Glow effect */}
+                <div className="absolute -inset-px bg-gradient-to-b from-brass-500/20 via-transparent to-transparent rounded-sm blur-sm" />
+                
+                {/* Modal content */}
+                <div className="relative bg-slate-900/95 backdrop-blur-sm border border-slate-700/50 rounded-sm shadow-2xl shadow-black/50 p-6">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h2 className="font-display text-2xl font-bold text-cream tracking-wide">
+                                Resetuj Hasło
+                            </h2>
+                            <p className="text-stone-500 text-sm mt-1">
+                                Wyślemy Ci link do resetowania
+                            </p>
+                        </div>
+                        <button
                             onClick={handleClose}
+                            className="text-stone-500 hover:text-cream transition-colors p-1 -mr-1 -mt-1"
                             disabled={loading}
-                            className="flex-1 bg-gray-700 hover:bg-gray-600"
                         >
-                            Anuluj
-                        </Button>
-                        <Button
-                            type="submit"
-                            disabled={loading || !!success}
-                            className="flex-1"
-                        >
-                            {loading ? <Spinner size="sm" /> : 'Wyślij link'}
-                        </Button>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
                     </div>
-                </form>
+
+                    {error && (
+                        <div className="bg-rust-600/20 border border-rust-600/50 text-rust-500 px-4 py-3 rounded-sm mb-4 flex items-start gap-3" role="alert">
+                            <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    {success && (
+                        <div className="bg-forest-700/30 border border-forest-600/50 text-forest-500 px-4 py-3 rounded-sm mb-4 flex items-start gap-3" role="alert">
+                            <svg className="w-5 h-5 mt-0.5 flex-shrink-0 text-forest-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <p className="text-sm">{success}</p>
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit}>
+                        <div className="mb-6">
+                            <label className="block text-stone-300 text-sm font-semibold mb-2 tracking-wide" htmlFor="reset-email">
+                                Adres Email
+                            </label>
+                            <input
+                                className={inputClasses}
+                                id="reset-email"
+                                type="email"
+                                placeholder="twoj@email.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                disabled={loading || !!success}
+                            />
+                        </div>
+
+                        <div className="flex gap-3">
+                            <Button
+                                type="button"
+                                onClick={handleClose}
+                                disabled={loading}
+                                variant="ghost"
+                                className="flex-1"
+                            >
+                                Anuluj
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={loading || !!success}
+                                className="flex-1"
+                            >
+                                {loading ? <Spinner size="sm" /> : 'Wyślij link'}
+                            </Button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     );

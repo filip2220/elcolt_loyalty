@@ -31,13 +31,19 @@ const AppContent: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-800 text-gray-200">
-            <Header activeView={activeView} setActiveView={setActiveView} />
-            <main className="p-4 sm:p-6 lg:p-8">
-                <div className="max-w-7xl mx-auto">
-                    {renderView()}
-                </div>
-            </main>
+        <div className="min-h-screen bg-slate-950 text-cream">
+            {/* Subtle gradient overlay */}
+            <div className="fixed inset-0 bg-gradient-to-b from-forest-900/20 via-transparent to-slate-950 pointer-events-none" />
+            
+            {/* Content */}
+            <div className="relative z-10">
+                <Header activeView={activeView} setActiveView={setActiveView} />
+                <main className="p-4 sm:p-6 lg:p-8">
+                    <div className="max-w-7xl mx-auto">
+                        {renderView()}
+                    </div>
+                </main>
+            </div>
         </div>
     );
 };

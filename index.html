@@ -1,15 +1,154 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Customer Loyalty Program</title>
+    <title>El Colt - Program Lojalnościowy</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      body {
-        background-color: #1f2937; /* A dark gunmetal gray background */
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              // Primary colors
+              'forest': {
+                900: '#0F1F18',
+                800: '#152B22',
+                700: '#1B3A2F',
+                600: '#234D3D',
+                500: '#2D614E',
+              },
+              'slate': {
+                950: '#0D0F12',
+                900: '#14171C',
+                850: '#1C1F26',
+                800: '#252930',
+                700: '#343942',
+              },
+              // Accent colors
+              'brass': {
+                400: '#D4AF37',
+                500: '#C9A227',
+                600: '#B8931F',
+              },
+              'amber': {
+                500: '#D97706',
+                600: '#B45309',
+                700: '#92400E',
+              },
+              'olive': {
+                600: '#4A5320',
+                500: '#5C6830',
+                400: '#6E7D40',
+              },
+              // Supporting
+              'stone': {
+                400: '#A3947F',
+                300: '#BFB49F',
+              },
+              'cream': '#F5F0E6',
+              'rust': {
+                600: '#8B2500',
+                500: '#A62E00',
+              },
+            },
+            fontFamily: {
+              'display': ['Oswald', 'sans-serif'],
+              'body': ['Source Sans 3', 'sans-serif'],
+              'mono': ['JetBrains Mono', 'monospace'],
+            },
+            backgroundImage: {
+              'topo-pattern': "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5c13.807 0 25 11.193 25 25s-11.193 25-25 25S5 43.807 5 30 16.193 5 30 5zm0 5c-11.046 0-20 8.954-20 20s8.954 20 20 20 20-8.954 20-20-8.954-20-20-20zm0 5c8.284 0 15 6.716 15 15s-6.716 15-15 15-15-6.716-15-15 6.716-15 15-15zm0 5c-5.523 0-10 4.477-10 10s4.477 10 10 10 10-4.477 10-10-4.477-10-10-10zm0 5c2.761 0 5 2.239 5 5s-2.239 5-5 5-5-2.239-5-5 2.239-5 5-5z' fill='%231B3A2F' fill-opacity='0.15' fill-rule='evenodd'/%3E%3C/svg%3E\")",
+              'crosshair': "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 0v40M0 20h40' stroke='%231B3A2F' stroke-opacity='0.08' stroke-width='1' fill='none'/%3E%3C/svg%3E\")",
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.5s ease-out',
+              'slide-up': 'slideUp 0.5s ease-out',
+              'pulse-slow': 'pulse 3s ease-in-out infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              slideUp: {
+                '0%': { opacity: '0', transform: 'translateY(20px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+            },
+          },
+        },
       }
+    </script>
+    
+    <style>
+      /* Base styles */
+      * {
+        font-family: 'Source Sans 3', sans-serif;
+      }
+      
+      h1, h2, h3, h4, h5, h6, .font-display {
+        font-family: 'Oswald', sans-serif;
+      }
+      
+      body {
+        background-color: #0D0F12;
+        background-image: 
+          radial-gradient(ellipse at top, rgba(27, 58, 47, 0.15) 0%, transparent 50%),
+          url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5c13.807 0 25 11.193 25 25s-11.193 25-25 25S5 43.807 5 30 16.193 5 30 5zm0 5c-11.046 0-20 8.954-20 20s8.954 20 20 20 20-8.954 20-20-8.954-20-20-20zm0 5c8.284 0 15 6.716 15 15s-6.716 15-15 15-15-6.716-15-15 6.716-15 15-15z' fill='%231B3A2F' fill-opacity='0.06' fill-rule='evenodd'/%3E%3C/svg%3E");
+      }
+      
+      /* Noise texture overlay */
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        z-index: 9999;
+      }
+      
+      /* Custom scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      ::-webkit-scrollbar-track {
+        background: #14171C;
+      }
+      
+      ::-webkit-scrollbar-thumb {
+        background: #343942;
+        border-radius: 4px;
+      }
+      
+      ::-webkit-scrollbar-thumb:hover {
+        background: #4A5320;
+      }
+      
+      /* Input focus styles */
+      input:focus {
+        box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.3);
+      }
+      
+      /* Staggered animation delays */
+      .stagger-1 { animation-delay: 0.1s; }
+      .stagger-2 { animation-delay: 0.2s; }
+      .stagger-3 { animation-delay: 0.3s; }
+      .stagger-4 { animation-delay: 0.4s; }
     </style>
+    
   <script type="importmap">
 {
   "imports": {
@@ -20,7 +159,7 @@
 }
 </script>
 </head>
-  <body>
+  <body class="antialiased">
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
