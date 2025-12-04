@@ -1,0 +1,35 @@
+# Node modules (will be installed in container)
+node_modules
+npm-debug.log
+
+# Environment files - CRITICAL: Never include in Docker image
+.env
+.env.*
+!.env.example
+
+# Git files
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Test files
+tests/
+*.test.js
+*.spec.js
+
+# Development files
+.vscode
+.idea
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp

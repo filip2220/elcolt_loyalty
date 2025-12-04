@@ -1,0 +1,5 @@
+{
+  "name": "WooCommerce Customer Loyalty",
+  "description": "A customer loyalty program app for an existing WooCommerce e-commerce store. Customers can log in to view their points balance, see order history, and redeem points for rewards.",
+  "requestFramePermissions": []
+}

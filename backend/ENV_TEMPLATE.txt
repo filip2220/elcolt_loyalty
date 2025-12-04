@@ -1,0 +1,93 @@
+# ===========================================
+# EL COLT LOYALTY APP - ENVIRONMENT CONFIGURATION
+# ===========================================
+# 
+# INSTRUCTIONS:
+# 1. Copy this file and rename to: .env
+# 2. Replace all placeholder values with your real credentials
+# 3. NEVER commit the .env file to Git (it should be in .gitignore)
+#
+# ===========================================
+
+# ===========================================
+# DATABASE CONFIGURATION
+# ===========================================
+# Get these values from your hosting control panel or wp-config.php
+
+# The database server address
+# Examples: localhost, mysql.yourhost.com, 192.168.1.100
+DB_HOST=localhost
+
+# Your database username
+DB_USER=your_database_username
+
+# Your database password
+DB_PASSWORD=your_database_password
+
+# The name of your WordPress/WooCommerce database
+DB_NAME=your_database_name
+
+# MySQL port (default is 3306, usually don't need to change)
+DB_PORT=3306
+
+# ===========================================
+# SECURITY CONFIGURATION
+# ===========================================
+
+# JWT Secret Key - VERY IMPORTANT!
+# This must be a long, random string (minimum 32 characters)
+# Generate one here: https://randomkeygen.com/ (use "CodeIgniter Encryption Keys")
+# NEVER share this key or commit it to Git
+JWT_SECRET=CHANGE_THIS_TO_A_LONG_RANDOM_STRING_AT_LEAST_32_CHARS
+
+# How long login tokens last (default: 1 day)
+JWT_EXPIRES_IN=1d
+
+# ===========================================
+# SERVER CONFIGURATION
+# ===========================================
+
+# Port the backend server runs on
+PORT=8080
+
+# Environment mode: development or production
+NODE_ENV=development
+
+# Your frontend URL (for CORS and password reset emails)
+# Development: http://localhost:5173
+# Production: https://your-app-domain.com
+FRONTEND_URL=http://localhost:5173
+
+# ===========================================
+# EMAIL CONFIGURATION (Optional)
+# ===========================================
+# Required only for password reset functionality
+# Leave blank to disable email sending (reset links will be logged to console)
+
+# SMTP server hostname
+# Gmail: smtp.gmail.com
+# Outlook: smtp-mail.outlook.com
+SMTP_HOST=smtp.gmail.com
+
+# SMTP port
+# 587 for TLS (recommended)
+# 465 for SSL
+SMTP_PORT=587
+
+# Your email address for sending
+SMTP_USER=
+
+# Your email password or app-specific password
+# For Gmail, use an App Password: https://support.google.com/accounts/answer/185833
+SMTP_PASS=
+
+# The "From" address shown in emails
+SMTP_FROM=
+
+# ===========================================
+# LOGGING (Optional)
+# ===========================================
+
+# Log level: error, warn, info, debug
+LOG_LEVEL=info
+

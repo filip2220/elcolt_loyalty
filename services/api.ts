@@ -1,0 +1,153 @@
+// FIX: Import the Reward type to use in the getRewards function.
+import { User, OrderActivity, Level, LevelDetails, Reward } from '../types';
+
+// The base URL for your backend API.
+// This is now configurable via environment variables for different environments:
+// - Development: http://localhost:8080/api (default)
+// - Production: Set VITE_API_URL in your deployment environment
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+
+// Log the API URL in development for debugging
+if (import.meta.env.DEV) {
+  console.log('🔗 API Base URL:', API_BASE_URL);
+}
+
+
+/**
+ * A helper function to handle API responses.
+ * It checks if the response was successful and parses the JSON body.
+ * If the response is not ok, it throws an error.
+ */
+const handleResponse = async (response: Response) => {
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+};
+
+export interface SignupData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+
+export interface LoyaltyData {
+  points: number;
+  level: Level;
+}
+
+// FIX: Define the shape of the response from the redeem reward endpoint.
+export interface RedeemResult {
+  newPoints: number;
+  message: string;
+  coupon: string;
+}
+
+export const signup = async (data: SignupData): Promise<{ token: string }> => {
+  const response = await fetch(`${API_BASE_URL}/signup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+  return handleResponse(response);
+};
+
+
+export const login = async (email: string, password: string): Promise<{ token: string }> => {
+  const response = await fetch(`${API_BASE_URL}/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  });
+  return handleResponse(response);
+};
+
+export const getUserProfile = async (token: string): Promise<User> => {
+  const response = await fetch(`${API_BASE_URL}/user/profile`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  return handleResponse(response);
+};
+
+export const getLoyaltyData = async (token: string): Promise<LoyaltyData> => {
+  const response = await fetch(`${API_BASE_URL}/user/points`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  return handleResponse(response); // The API now returns { points: number, level: Level }
+};
+
+export const getUserActivity = async (token: string): Promise<OrderActivity[]> => {
+  const response = await fetch(`${API_BASE_URL}/user/activity`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  return handleResponse(response);
+};
+
+// FIX: Add getRewards function to fetch available rewards from the backend.
+export const getRewards = async (): Promise<Reward[]> => {
+  const response = await fetch(`${API_BASE_URL}/rewards`);
+  return handleResponse(response);
+};
+
+// FIX: Add redeemReward function to send a redemption request to the backend.
+export const redeemReward = async (token: string, rewardId: number): Promise<RedeemResult> => {
+  const response = await fetch(`${API_BASE_URL}/user/redeem`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ rewardId }),
+  });
+  return handleResponse(response);
+};
+
+export const getLevels = async (): Promise<LevelDetails[]> => {
+  const response = await fetch(`${API_BASE_URL}/levels`);
+  return handleResponse(response);
+};
+
+export const getTotalSavings = async (token: string): Promise<{ totalSavings: number }> => {
+  const response = await fetch(`${API_BASE_URL}/user/savings`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  return handleResponse(response);
+};
+
+export const forgotPassword = async (email: string): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/forgot-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email }),
+  });
+  return handleResponse(response);
+};
+
+export const resetPassword = async (token: string, newPassword: string): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/reset-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token, newPassword }),
+  });
+  return handleResponse(response);
+};
+

@@ -1,0 +1,20 @@
+# Email Configuration for info@elcolt.pl
+# Copy these lines to your backend/.env file
+
+# Email SMTP Settings
+SMTP_HOST=smtp.elcolt.pl
+SMTP_PORT=587
+SMTP_USER=info@elcolt.pl
+SMTP_PASS=your-email-password-here
+SMTP_FROM=info@elcolt.pl
+
+# Frontend URL (for password reset links)
+FRONTEND_URL=http://localhost:5173
+
+# NOTES:
+# 1. Replace 'your-email-password-here' with the actual password for info@elcolt.pl
+# 2. SMTP_HOST might be different - check with your hosting provider
+#    Common alternatives: mail.elcolt.pl, elcolt.pl, or your hosting provider's SMTP server
+# 3. SMTP_PORT is usually 587 (TLS) or 465 (SSL)
+# 4. For production, change FRONTEND_URL to your actual domain
+# 5. Keep this file secure - never commit it to git!
