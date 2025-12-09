@@ -235,11 +235,11 @@ router.get('/user/activity', verifyToken, async (req, res) => {
             'SELECT customer_id, email FROM el1wc_customer_lookup WHERE user_id = ?',
             [req.userId]
         );
-        
+
         // If no WooCommerce customer record exists, try to find by email
         let wcCustomerId = null;
         let userEmail = null;
-        
+
         if (customerLookup.length > 0) {
             wcCustomerId = customerLookup[0].customer_id;
             userEmail = customerLookup[0].email;
@@ -250,7 +250,7 @@ router.get('/user/activity', verifyToken, async (req, res) => {
                 userEmail = users[0].user_email;
             }
         }
-        
+
         if (!wcCustomerId && !userEmail) {
             return res.json([]); // No customer record found
         }
@@ -258,7 +258,7 @@ router.get('/user/activity', verifyToken, async (req, res) => {
         // Build query dynamically based on available identifiers to avoid matching unrelated orders
         const conditions = [];
         const params = [];
-        
+
         if (wcCustomerId) {
             conditions.push('lookup.customer_id = ?');
             params.push(wcCustomerId);
@@ -303,10 +303,10 @@ router.get('/user/savings', verifyToken, async (req, res) => {
             'SELECT customer_id, email FROM el1wc_customer_lookup WHERE user_id = ?',
             [req.userId]
         );
-        
+
         let wcCustomerId = null;
         let userEmail = null;
-        
+
         if (customerLookup.length > 0) {
             wcCustomerId = customerLookup[0].customer_id;
             userEmail = customerLookup[0].email;
@@ -317,7 +317,7 @@ router.get('/user/savings', verifyToken, async (req, res) => {
                 userEmail = users[0].user_email;
             }
         }
-        
+
         if (!wcCustomerId && !userEmail) {
             return res.json({ totalSavings: 0 });
         }
@@ -325,7 +325,7 @@ router.get('/user/savings', verifyToken, async (req, res) => {
         // Build query dynamically based on available identifiers to avoid matching unrelated orders
         const conditions = [];
         const params = [];
-        
+
         if (wcCustomerId) {
             conditions.push('o.customer_id = ?');
             params.push(wcCustomerId);
@@ -663,10 +663,10 @@ router.post('/reset-password', async (req, res) => {
 router.get('/image-proxy', async (req, res) => {
     const https = require('https');
     const http = require('http');
-    
+
     try {
         const imageUrl = req.query.url;
-        
+
         if (!imageUrl) {
             return res.status(400).json({ message: 'URL parameter is required' });
         }
@@ -688,7 +688,18 @@ router.get('/image-proxy', async (req, res) => {
             method: 'GET',
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': `${parsedUrl.protocol}//${parsedUrl.hostname}/`,
+                'Sec-Fetch-Dest': 'image',
+                'Sec-Fetch-Mode': 'no-cors',
+                'Sec-Fetch-Site': 'same-origin',
+                'Sec-CH-UA': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                'Sec-CH-UA-Mobile': '?0',
+                'Sec-CH-UA-Platform': '"Windows"',
+                'Connection': 'keep-alive',
+                'Cache-Control': 'no-cache',
             },
         };
 
@@ -738,7 +749,7 @@ router.get('/image-proxy', async (req, res) => {
 router.get('/debug/images/:productId', async (req, res) => {
     try {
         const productId = parseInt(req.params.productId);
-        
+
         // Get WordPress site URL from options
         const [siteUrlResult] = await db.query(
             "SELECT option_value FROM el1options WHERE option_name = 'siteurl' LIMIT 1"
@@ -746,35 +757,35 @@ router.get('/debug/images/:productId', async (req, res) => {
         const [homeUrlResult] = await db.query(
             "SELECT option_value FROM el1options WHERE option_name = 'home' LIMIT 1"
         );
-        
+
         // Get thumbnail ID
         const [thumbnailMeta] = await db.query(
             "SELECT meta_value FROM el1postmeta WHERE post_id = ? AND meta_key = '_thumbnail_id'",
             [productId]
         );
-        
+
         let imageData = null;
         let attachmentMeta = null;
-        
+
         if (thumbnailMeta.length > 0 && thumbnailMeta[0].meta_value) {
             const thumbnailId = parseInt(thumbnailMeta[0].meta_value);
-            
+
             // Get the attachment post
             const [attachment] = await db.query(
                 "SELECT ID, guid, post_title, post_mime_type FROM el1posts WHERE ID = ?",
                 [thumbnailId]
             );
-            
+
             // Get attachment metadata
             const [meta] = await db.query(
                 "SELECT meta_key, meta_value FROM el1postmeta WHERE post_id = ? AND meta_key IN ('_wp_attached_file', '_wp_attachment_metadata')",
                 [thumbnailId]
             );
-            
+
             imageData = attachment[0] || null;
             attachmentMeta = meta;
         }
-        
+
         res.json({
             product_id: productId,
             wordpress_config: {
@@ -812,21 +823,22 @@ router.get('/products', async (req, res) => {
                 p.post_content as description,
                 p.post_date as created_at,
                 p.post_modified as updated_at,
-                (SELECT pm.meta_value FROM el1postmeta pm WHERE pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id' LIMIT 1) as thumbnail_id
+                (SELECT pm.meta_value FROM el1postmeta pm WHERE pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id' LIMIT 1) as thumbnail_id,
+                (SELECT img.guid FROM el1posts img WHERE img.ID = CAST((SELECT pm.meta_value FROM el1postmeta pm WHERE pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id' LIMIT 1) AS UNSIGNED) AND img.post_type = 'attachment' LIMIT 1) as thumbnail_url
             FROM el1posts p
             WHERE p.post_type = 'product' 
               AND p.post_status = 'publish'
             ORDER BY p.post_date DESC
             LIMIT ? OFFSET ?
         `;
-        
+
         const [products] = await db.query(query, [limit, offset]);
-        
+
         // Get total count for pagination
         const [countResult] = await db.query(
             "SELECT COUNT(*) as total FROM el1posts WHERE post_type = 'product' AND post_status = 'publish'"
         );
-        
+
         res.json({
             products,
             pagination: {
@@ -849,7 +861,7 @@ router.get('/products', async (req, res) => {
 router.get('/products/:id', async (req, res) => {
     try {
         const productId = parseInt(req.params.id);
-        
+
         if (!productId || isNaN(productId)) {
             return res.status(400).json({ message: 'Nieprawidłowe ID produktu.' });
         }
@@ -894,7 +906,7 @@ router.get('/products/:id', async (req, res) => {
                 FROM el1posts p
                 WHERE p.ID = ? AND p.post_type = 'attachment'
             `, [thumbnailId]);
-            
+
             if (imageData.length > 0) {
                 featuredImage = {
                     id: imageData[0].id,
@@ -914,7 +926,7 @@ router.get('/products/:id', async (req, res) => {
         let galleryImages = [];
         if (galleryMeta.length > 0 && galleryMeta[0].meta_value) {
             const galleryIds = galleryMeta[0].meta_value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-            
+
             if (galleryIds.length > 0) {
                 const placeholders = galleryIds.map(() => '?').join(',');
                 const [images] = await db.query(`
@@ -925,7 +937,7 @@ router.get('/products/:id', async (req, res) => {
                     FROM el1posts p
                     WHERE p.ID IN (${placeholders}) AND p.post_type = 'attachment'
                 `, galleryIds);
-                
+
                 galleryImages = images;
             }
         }
@@ -967,7 +979,7 @@ router.get('/products/:id', async (req, res) => {
 router.get('/products/:id/images', async (req, res) => {
     try {
         const productId = parseInt(req.params.id);
-        
+
         if (!productId || isNaN(productId)) {
             return res.status(400).json({ message: 'Nieprawidłowe ID produktu.' });
         }
@@ -998,19 +1010,19 @@ router.get('/products/:id/images', async (req, res) => {
 
         // Collect all image IDs
         const imageIds = [];
-        
+
         if (thumbnailMeta.length > 0 && thumbnailMeta[0].meta_value) {
             imageIds.push(parseInt(thumbnailMeta[0].meta_value));
         }
-        
+
         if (galleryMeta.length > 0 && galleryMeta[0].meta_value) {
             const galleryIds = galleryMeta[0].meta_value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
             imageIds.push(...galleryIds);
         }
 
         if (imageIds.length === 0) {
-            return res.json({ 
-                featured_image: null, 
+            return res.json({
+                featured_image: null,
                 gallery_images: [],
                 all_images: []
             });
@@ -1036,8 +1048,8 @@ router.get('/products/:id/images', async (req, res) => {
         // Separate featured and gallery
         const featuredId = thumbnailMeta.length > 0 ? parseInt(thumbnailMeta[0].meta_value) : null;
         const featuredImage = featuredId && imageMap[featuredId] ? imageMap[featuredId] : null;
-        
-        const galleryIds = galleryMeta.length > 0 && galleryMeta[0].meta_value 
+
+        const galleryIds = galleryMeta.length > 0 && galleryMeta[0].meta_value
             ? galleryMeta[0].meta_value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
             : [];
         const galleryImages = galleryIds.map(id => imageMap[id]).filter(Boolean);
@@ -1051,6 +1063,102 @@ router.get('/products/:id/images', async (req, res) => {
     } catch (error) {
         console.error('Get product images error:', error);
         res.status(500).json({ message: 'Błąd serwera podczas pobierania zdjęć produktu.' });
+    }
+});
+
+// =====================================================
+// SALES ENDPOINTS
+// =====================================================
+
+/**
+ * GET /api/sales/public
+ * Returns products currently on sale (from WooCommerce)
+ * Public: No authentication required
+ */
+router.get('/sales/public', async (req, res) => {
+    try {
+        const query = `
+            SELECT DISTINCT
+                p.ID as id,
+                p.post_title as name,
+                regular.meta_value as regular_price,
+                sale.meta_value as sale_price,
+                (SELECT img.guid FROM el1posts img WHERE img.ID = CAST(thumb_id.meta_value AS UNSIGNED) AND img.post_type = 'attachment' LIMIT 1) as thumbnail_url,
+                sale_from.meta_value as sale_from,
+                sale_to.meta_value as sale_to
+            FROM el1posts p
+            LEFT JOIN el1postmeta regular ON p.ID = regular.post_id AND regular.meta_key = '_regular_price'
+            LEFT JOIN el1postmeta sale ON p.ID = sale.post_id AND sale.meta_key = '_sale_price'
+            LEFT JOIN el1postmeta thumb_id ON p.ID = thumb_id.post_id AND thumb_id.meta_key = '_thumbnail_id'
+            LEFT JOIN el1postmeta sale_from ON p.ID = sale_from.post_id AND sale_from.meta_key = '_sale_price_dates_from'
+            LEFT JOIN el1postmeta sale_to ON p.ID = sale_to.post_id AND sale_to.meta_key = '_sale_price_dates_to'
+            WHERE p.post_type = 'product' 
+              AND p.post_status = 'publish'
+              AND p.post_parent = 0
+              AND sale.meta_value IS NOT NULL 
+              AND sale.meta_value != ''
+            ORDER BY p.post_title
+            LIMIT 50
+        `;
+
+        const [sales] = await db.query(query);
+
+        // Calculate discount percentage for each product
+        const salesWithDiscount = sales.map(product => {
+            const regular = parseFloat(product.regular_price) || 0;
+            const sale = parseFloat(product.sale_price) || 0;
+            const discountPercent = regular > 0 ? Math.round((1 - sale / regular) * 100) : 0;
+
+            return {
+                ...product,
+                discount_percent: discountPercent
+            };
+        });
+
+        res.json({
+            sales: salesWithDiscount,
+            count: salesWithDiscount.length
+        });
+
+    } catch (error) {
+        console.error('Get public sales error:', error);
+        res.status(500).json({ message: 'Błąd serwera podczas pobierania promocji.' });
+    }
+});
+
+/**
+ * GET /api/sales/app-exclusive
+ * Returns app-exclusive offers from WPLoyalty rewards
+ * Public: No authentication required (but redemption requires login)
+ */
+router.get('/sales/app-exclusive', async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                id,
+                name,
+                display_name,
+                description,
+                discount_type,
+                discount_value,
+                require_point as points_required,
+                reward_type
+            FROM el1wlr_rewards 
+            WHERE active = 1 
+              AND is_show_reward = 1
+            ORDER BY ordering
+        `;
+
+        const [offers] = await db.query(query);
+
+        res.json({
+            offers,
+            count: offers.length
+        });
+
+    } catch (error) {
+        console.error('Get app-exclusive offers error:', error);
+        res.status(500).json({ message: 'Błąd serwera podczas pobierania ofert.' });
     }
 });
 

@@ -13,8 +13,8 @@ const Logo: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
   <div className="relative flex items-center gap-2 sm:gap-3">
     {/* Crosshairs icon */}
     <div className={`relative ${compact ? 'w-8 h-8' : 'w-10 h-10'}`}>
-      <svg 
-        viewBox="0 0 40 40" 
+      <svg
+        viewBox="0 0 40 40"
         className="w-full h-full text-brass-500"
         fill="none"
         stroke="currentColor"
@@ -33,7 +33,7 @@ const Logo: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
         <circle cx="20" cy="20" r="2" fill="currentColor" />
       </svg>
     </div>
-    
+
     <div className="flex flex-col">
       <span className={`font-display font-bold tracking-wide text-cream leading-none ${compact ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
         EL COLT
@@ -61,8 +61,8 @@ const NavLink: React.FC<{
         transition-all duration-200 ease-out
         border-b-2 -mb-px
         focus:outline-none focus:ring-2 focus:ring-brass-500/50 focus:ring-offset-2 focus:ring-offset-slate-900
-        ${isActive 
-          ? 'border-brass-500 text-brass-400' 
+        ${isActive
+          ? 'border-brass-500 text-brass-400'
           : 'border-transparent text-stone-400 hover:text-cream hover:border-stone-600'
         }
       `}
@@ -92,8 +92,8 @@ const MobileNavLink: React.FC<{
         flex flex-col items-center justify-center gap-1 flex-1 py-2 min-h-[56px]
         transition-all duration-200 ease-out
         focus:outline-none
-        ${isActive 
-          ? 'text-brass-400' 
+        ${isActive
+          ? 'text-brass-400'
           : 'text-stone-500 active:text-stone-300'
         }
       `}
@@ -133,9 +133,10 @@ const RewardsIcon = () => (
   </svg>
 );
 
-const ProductsIcon = () => (
+const SalesIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
   </svg>
 );
 
@@ -158,9 +159,10 @@ const MobileRewardsIcon = () => (
   </svg>
 );
 
-const MobileProductsIcon = () => (
+const MobileSalesIcon = () => (
   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
   </svg>
 );
 
@@ -170,7 +172,7 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
   const handleDashboardClick = useCallback(() => setActiveView('dashboard'), [setActiveView]);
   const handleActivityClick = useCallback(() => setActiveView('activity'), [setActiveView]);
   const handleRewardsClick = useCallback(() => setActiveView('rewards'), [setActiveView]);
-  const handleProductsClick = useCallback(() => setActiveView('products'), [setActiveView]);
+  const handleSalesClick = useCallback(() => setActiveView('sales'), [setActiveView]);
 
   return (
     <>
@@ -180,7 +182,7 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <Logo compact />
-            
+
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-semibold text-cream">{user?.name}</p>
@@ -195,7 +197,7 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
             </div>
           </div>
         </div>
-        
+
         {/* Desktop Navigation - hidden on mobile */}
         <nav className="hidden md:block border-t border-slate-800/50 bg-slate-900/50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -203,14 +205,14 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
               <NavLink isActive={activeView === 'dashboard'} onClick={handleDashboardClick} icon={<DashboardIcon />}>
                 Panel
               </NavLink>
-              <NavLink isActive={activeView === 'products'} onClick={handleProductsClick} icon={<ProductsIcon />}>
-                Produkty
-              </NavLink>
               <NavLink isActive={activeView === 'activity'} onClick={handleActivityClick} icon={<ActivityIcon />}>
                 Aktywność
               </NavLink>
               <NavLink isActive={activeView === 'rewards'} onClick={handleRewardsClick} icon={<RewardsIcon />}>
                 Nagrody
+              </NavLink>
+              <NavLink isActive={activeView === 'sales'} onClick={handleSalesClick} icon={<SalesIcon />}>
+                Promocje
               </NavLink>
             </div>
           </div>
@@ -220,29 +222,29 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/50 safe-area-bottom">
         <div className="flex items-stretch">
-          <MobileNavLink 
-            isActive={activeView === 'dashboard'} 
-            onClick={handleDashboardClick} 
+          <MobileNavLink
+            isActive={activeView === 'dashboard'}
+            onClick={handleDashboardClick}
             icon={<MobileDashboardIcon />}
             label="Panel"
           />
-          <MobileNavLink 
-            isActive={activeView === 'products'} 
-            onClick={handleProductsClick} 
-            icon={<MobileProductsIcon />}
-            label="Produkty"
-          />
-          <MobileNavLink 
-            isActive={activeView === 'activity'} 
-            onClick={handleActivityClick} 
+          <MobileNavLink
+            isActive={activeView === 'activity'}
+            onClick={handleActivityClick}
             icon={<MobileActivityIcon />}
             label="Historia"
           />
-          <MobileNavLink 
-            isActive={activeView === 'rewards'} 
-            onClick={handleRewardsClick} 
+          <MobileNavLink
+            isActive={activeView === 'rewards'}
+            onClick={handleRewardsClick}
             icon={<MobileRewardsIcon />}
             label="Nagrody"
+          />
+          <MobileNavLink
+            isActive={activeView === 'sales'}
+            onClick={handleSalesClick}
+            icon={<MobileSalesIcon />}
+            label="Promocje"
           />
         </div>
       </nav>

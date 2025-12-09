@@ -6,10 +6,10 @@ import DashboardView from './components/DashboardView';
 import Header from './components/Header';
 import ActivityView from './components/ActivityView';
 import RewardsView from './components/RewardsView';
-import ProductsView from './components/ProductsView';
+import SalesView from './components/SalesView';
 import ResetPasswordView from './components/ResetPasswordView';
 
-export type View = 'dashboard' | 'activity' | 'rewards' | 'products';
+export type View = 'dashboard' | 'activity' | 'rewards' | 'sales';
 
 const AppContent: React.FC = () => {
     const { isAuthenticated, user } = useAuth();
@@ -25,8 +25,9 @@ const AppContent: React.FC = () => {
                 return <ActivityView />;
             case 'rewards':
                 return <RewardsView />;
-            case 'products':
-                return <ProductsView />;
+
+            case 'sales':
+                return <SalesView />;
             case 'dashboard':
             default:
                 return <DashboardView />;
@@ -37,7 +38,7 @@ const AppContent: React.FC = () => {
         <div className="min-h-screen bg-slate-950 text-cream">
             {/* Subtle gradient overlay */}
             <div className="fixed inset-0 bg-gradient-to-b from-forest-900/20 via-transparent to-slate-950 pointer-events-none" />
-            
+
             {/* Content */}
             <div className="relative z-10">
                 <Header activeView={activeView} setActiveView={setActiveView} />

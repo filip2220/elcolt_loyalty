@@ -1,67 +1,87 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Reward } from '../types';
+import { AppOffer } from '../types';
 import * as api from '../services/api';
 import Spinner from './Spinner';
 import Card from './Card';
 import Button from './Button';
 import { formatPolishInteger } from '../utils/format';
 
-// Reward category icon
-const RewardIcon: React.FC<{ className?: string }> = ({ className }) => (
+// Gift/Offer icon
+const OfferIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
     </svg>
 );
 
-interface RewardCardProps {
-    reward: Reward;
-    onRedeem: (rewardId: number) => void;
+// App Offer Card Component
+interface AppOfferCardProps {
+    offer: AppOffer;
+    onRedeem: (offerId: number) => void;
     isRedeeming: boolean;
     userPoints: number;
 }
 
-const RewardCard: React.FC<RewardCardProps> = ({ reward, onRedeem, isRedeeming, userPoints }) => {
-    const canRedeem = userPoints >= reward.points;
-    const progressPercentage = Math.min(100, (userPoints / reward.points) * 100);
+const AppOfferCard: React.FC<AppOfferCardProps> = ({ offer, onRedeem, isRedeeming, userPoints }) => {
+    const getDiscountLabel = () => {
+        if (offer.discount_type === 'percent') {
+            return `${offer.discount_value}% zniżki`;
+        } else if (offer.discount_type === 'fixed_cart' || offer.discount_type === 'fixed_product') {
+            return `${offer.discount_value} PLN rabatu`;
+        }
+        return `${offer.discount_value}`;
+    };
+
+    const isFreeOffer = offer.points_required === 0;
+    const canRedeem = isFreeOffer || userPoints >= offer.points_required;
+    const progressPercentage = isFreeOffer ? 100 : Math.min(100, (userPoints / offer.points_required) * 100);
 
     return (
         <Card variant="elevated" className="flex flex-col h-full group relative overflow-hidden">
             {/* Top accent line */}
-            <div className={`absolute top-0 left-0 right-0 h-1 ${canRedeem ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600' : 'bg-slate-700'}`} />
-            
-            {/* Corner tag if affordable */}
-            {canRedeem && (
-                <div className="absolute top-3 right-3">
+            <div className={`absolute top-0 left-0 right-0 h-1 ${canRedeem ? 'bg-gradient-to-r from-forest-600 via-forest-500 to-forest-600' : 'bg-slate-700'}`} />
+
+            {/* Free offer tag or Available tag */}
+            <div className="absolute top-3 right-3">
+                {isFreeOffer ? (
+                    <div className="bg-forest-500/20 border border-forest-500/40 rounded-sm px-2 py-0.5">
+                        <span className="text-xs font-semibold text-forest-400 uppercase tracking-wider">Darmowe</span>
+                    </div>
+                ) : canRedeem ? (
                     <div className="bg-amber-500/20 border border-amber-500/40 rounded-sm px-2 py-0.5">
                         <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Dostępne</span>
                     </div>
-                </div>
-            )}
+                ) : null}
+            </div>
 
             <div className="flex-grow pt-2">
                 {/* Icon */}
-                <div className={`w-10 h-10 rounded-sm flex items-center justify-center mb-4 ${canRedeem ? 'bg-amber-500/10' : 'bg-slate-800'}`}>
-                    <RewardIcon className={`w-6 h-6 ${canRedeem ? 'text-amber-500' : 'text-stone-500'}`} />
+                <div className={`w-10 h-10 rounded-sm flex items-center justify-center mb-4 ${canRedeem ? 'bg-forest-500/10' : 'bg-slate-800'}`}>
+                    <OfferIcon className={`w-6 h-6 ${canRedeem ? 'text-forest-500' : 'text-stone-500'}`} />
                 </div>
-                
-                {/* Title */}
-                <h3 className="font-display text-lg font-bold text-cream tracking-wide mb-2 group-hover:text-brass-400 transition-colors">
-                    {reward.name}
+
+                {/* Title - Discount Label */}
+                <h3 className="font-display text-lg font-bold text-cream tracking-wide mb-2 group-hover:text-forest-400 transition-colors">
+                    {getDiscountLabel()}
                 </h3>
-                
-                {/* Points cost - dog tag style */}
-                <div className="inline-flex items-center bg-slate-800/80 border border-slate-700/50 rounded-sm px-3 py-1 mb-3">
-                    <span className="font-mono text-2xl font-bold text-amber-500">{formatPolishInteger(reward.points)}</span>
-                    <span className="text-stone-500 text-sm ml-1.5">pkt</span>
-                </div>
-                
-                {/* Description */}
-                <p className="text-stone-400 text-sm leading-relaxed">
-                    {reward.description}
-                </p>
+
+                {/* Offer name & description */}
+                <p className="text-brass-400 text-sm font-medium mb-2">{offer.name}</p>
+                {offer.description && (
+                    <p className="text-stone-400 text-sm leading-relaxed">
+                        {offer.description}
+                    </p>
+                )}
+
+                {/* Points required */}
+                {!isFreeOffer && (
+                    <div className="inline-flex items-center bg-slate-800/80 border border-slate-700/50 rounded-sm px-3 py-1 mt-3">
+                        <span className="font-mono text-lg font-bold text-amber-500">{formatPolishInteger(offer.points_required)}</span>
+                        <span className="text-stone-500 text-sm ml-1.5">pkt</span>
+                    </div>
+                )}
             </div>
-            
+
             {/* Footer with progress and button */}
             <div className="mt-6 space-y-3">
                 {/* Mini progress bar if not affordable */}
@@ -72,19 +92,19 @@ const RewardCard: React.FC<RewardCardProps> = ({ reward, onRedeem, isRedeeming, 
                             <span className="text-stone-400 font-mono">{Math.round(progressPercentage)}%</span>
                         </div>
                         <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <div 
+                            <div
                                 className="h-full bg-gradient-to-r from-slate-600 to-slate-500 rounded-full transition-all duration-500"
                                 style={{ width: `${progressPercentage}%` }}
                             />
                         </div>
                     </div>
                 )}
-                
+
                 <Button
-                    onClick={() => onRedeem(reward.id)}
+                    onClick={() => onRedeem(offer.id)}
                     disabled={!canRedeem || isRedeeming}
                     variant={canRedeem ? 'primary' : 'secondary'}
-                    className="w-full"
+                    className={`w-full ${canRedeem ? 'bg-forest-600 hover:bg-forest-500' : ''}`}
                 >
                     {isRedeeming ? (
                         <Spinner size="sm" />
@@ -93,7 +113,7 @@ const RewardCard: React.FC<RewardCardProps> = ({ reward, onRedeem, isRedeeming, 
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
-                            Odbierz nagrodę
+                            Odbierz ofertę
                         </>
                     ) : (
                         <>
@@ -104,10 +124,10 @@ const RewardCard: React.FC<RewardCardProps> = ({ reward, onRedeem, isRedeeming, 
                         </>
                     )}
                 </Button>
-                
+
                 {!canRedeem && (
                     <p className="text-xs text-center text-stone-600">
-                        Brakuje <span className="text-stone-400 font-mono">{formatPolishInteger(reward.points - userPoints)}</span> punktów
+                        Brakuje <span className="text-stone-400 font-mono">{formatPolishInteger(offer.points_required - userPoints)}</span> punktów
                     </p>
                 )}
             </div>
@@ -117,34 +137,34 @@ const RewardCard: React.FC<RewardCardProps> = ({ reward, onRedeem, isRedeeming, 
 
 const RewardsView: React.FC = () => {
     const { token, points, updatePoints } = useAuth();
-    const [rewards, setRewards] = useState<Reward[]>([]);
+    const [offers, setOffers] = useState<AppOffer[]>([]);
     const [loading, setLoading] = useState(true);
     const [redeemingId, setRedeemingId] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<{ message: string, coupon: string } | null>(null);
 
     useEffect(() => {
-        const fetchRewards = async () => {
+        const fetchOffers = async () => {
             try {
-                const availableRewards = await api.getRewards();
-                setRewards(availableRewards);
+                const response = await api.getAppOffers();
+                setOffers(response.offers);
             } catch (error) {
-                console.error("Failed to fetch rewards", error);
-                setError("Nie udało się załadować nagród. Spróbuj ponownie później.");
+                console.error("Failed to fetch offers", error);
+                setError("Nie udało się załadować ofert. Spróbuj ponownie później.");
             } finally {
                 setLoading(false);
             }
         };
-        fetchRewards();
+        fetchOffers();
     }, []);
 
-    const handleRedeem = async (rewardId: number) => {
+    const handleRedeem = async (offerId: number) => {
         if (!token) return;
-        setRedeemingId(rewardId);
+        setRedeemingId(offerId);
         setError(null);
         setSuccess(null);
         try {
-            const result = await api.redeemReward(token, rewardId);
+            const result = await api.redeemReward(token, offerId);
             updatePoints(result.newPoints);
             setSuccess({ message: result.message, coupon: result.coupon });
         } catch (err: any) {
@@ -158,7 +178,7 @@ const RewardsView: React.FC = () => {
         return (
             <div className="flex flex-col justify-center items-center h-64 gap-4">
                 <Spinner size="lg" />
-                <p className="text-stone-500 text-sm">Ładowanie nagród...</p>
+                <p className="text-stone-500 text-sm">Ładowanie ofert...</p>
             </div>
         );
     }
@@ -169,11 +189,11 @@ const RewardsView: React.FC = () => {
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4">
                 <div>
                     <h1 className="font-display text-2xl sm:text-3xl font-bold text-cream tracking-wide">
-                        Katalog Nagród
+                        Oferty dla Użytkowników
                     </h1>
-                    <p className="text-stone-500 text-sm sm:text-base mt-1">Wymień swoje punkty na ekskluzywne nagrody</p>
+                    <p className="text-stone-500 text-sm sm:text-base mt-1">Ekskluzywne oferty dostępne wyłącznie w aplikacji</p>
                 </div>
-                
+
                 {/* Points badge */}
                 <div className="flex items-center gap-3 bg-slate-850 border border-slate-700/50 rounded-sm px-3 sm:px-4 py-2 sm:py-3">
                     <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-sm bg-amber-500/10 flex items-center justify-center">
@@ -211,7 +231,7 @@ const RewardsView: React.FC = () => {
                         <div className="flex-1">
                             <p className="font-display font-semibold text-forest-400">Sukces!</p>
                             <p className="text-forest-300/80 text-sm mt-1">{success.message}</p>
-                            
+
                             {/* Coupon code display */}
                             <div className="mt-4 bg-slate-900/80 border border-slate-700/50 rounded-sm p-4">
                                 <p className="text-stone-500 text-xs uppercase tracking-wider mb-2">Twój kod kuponu:</p>
@@ -219,7 +239,7 @@ const RewardsView: React.FC = () => {
                                     <code className="font-mono text-xl font-bold text-brass-400 bg-brass-500/10 px-4 py-2 rounded-sm border border-brass-500/30">
                                         {success.coupon}
                                     </code>
-                                    <button 
+                                    <button
                                         onClick={() => navigator.clipboard.writeText(success.coupon)}
                                         className="text-stone-400 hover:text-cream transition-colors p-2"
                                         title="Kopiuj kod"
@@ -235,26 +255,26 @@ const RewardsView: React.FC = () => {
                 </div>
             )}
 
-            {/* Rewards grid */}
+            {/* Offers grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-                {rewards.map((reward, index) => (
-                    <div key={reward.id} className={`stagger-${(index % 4) + 1} animate-slide-up`}>
-                        <RewardCard
-                            reward={reward}
+                {offers.map((offer, index) => (
+                    <div key={offer.id} className={`stagger-${(index % 4) + 1} animate-slide-up`}>
+                        <AppOfferCard
+                            offer={offer}
                             onRedeem={handleRedeem}
-                            isRedeeming={redeemingId === reward.id}
+                            isRedeeming={redeemingId === offer.id}
                             userPoints={points}
                         />
                     </div>
                 ))}
             </div>
-            
-            {rewards.length === 0 && (
+
+            {offers.length === 0 && (
                 <div className="text-center py-16">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center">
-                        <RewardIcon className="w-8 h-8 text-stone-600" />
+                        <OfferIcon className="w-8 h-8 text-stone-600" />
                     </div>
-                    <p className="text-stone-500">Brak dostępnych nagród</p>
+                    <p className="text-stone-500">Brak dostępnych ofert</p>
                 </div>
             )}
         </div>

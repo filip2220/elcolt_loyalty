@@ -1,5 +1,5 @@
 // FIX: Import the Reward type to use in the getRewards function.
-import { User, OrderActivity, Level, LevelDetails, Reward, Product, ProductListResponse, ProductImagesResponse } from '../types';
+import { User, OrderActivity, Level, LevelDetails, Reward, Product, ProductListResponse, ProductImagesResponse, PublicSalesResponse, AppOffersResponse } from '../types';
 
 // The base URL for your backend API.
 // This is now configurable via environment variables for different environments:
@@ -190,4 +190,25 @@ export const getProductImages = async (productId: number): Promise<ProductImages
 export const getProxiedImageUrl = (originalUrl: string): string => {
   return `${API_BASE_URL}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
 };
+
+// =====================================================
+// SALES API FUNCTIONS
+// =====================================================
+
+/**
+ * Get products currently on sale (public WooCommerce sales)
+ */
+export const getPublicSales = async (): Promise<PublicSalesResponse> => {
+  const response = await fetch(`${API_BASE_URL}/sales/public`);
+  return handleResponse(response);
+};
+
+/**
+ * Get app-exclusive offers (WPLoyalty rewards)
+ */
+export const getAppOffers = async (): Promise<AppOffersResponse> => {
+  const response = await fetch(`${API_BASE_URL}/sales/app-exclusive`);
+  return handleResponse(response);
+};
+
 
