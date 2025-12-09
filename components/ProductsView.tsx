@@ -178,17 +178,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, loadin
         };
     }, []);
 
-    // Handle keyboard navigation
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-            if (e.key === 'ArrowLeft') handlePrevImage();
-            if (e.key === 'ArrowRight') handleNextImage();
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
-
     // Combine all images and proxy their URLs
     const allImages: (ProductImage & { proxiedUrl: string })[] = product ? [
         ...(product.featured_image ? [{ ...product.featured_image, proxiedUrl: api.getProxiedImageUrl(product.featured_image.url) }] : []),
@@ -204,6 +193,17 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, loadin
     const handleNextImage = useCallback(() => {
         setCurrentImageIndex(prev => prev < allImages.length - 1 ? prev + 1 : 0);
     }, [allImages.length]);
+
+    // Handle keyboard navigation
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+            if (e.key === 'ArrowLeft') handlePrevImage();
+            if (e.key === 'ArrowRight') handleNextImage();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose, handlePrevImage, handleNextImage]);
 
     // Strip HTML but preserve some formatting
     const formatDescription = (html: string) => {

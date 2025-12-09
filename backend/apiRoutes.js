@@ -255,6 +255,19 @@ router.get('/user/activity', verifyToken, async (req, res) => {
             return res.json([]); // No customer record found
         }
 
+        // Build query dynamically based on available identifiers to avoid matching unrelated orders
+        const conditions = [];
+        const params = [];
+        
+        if (wcCustomerId) {
+            conditions.push('lookup.customer_id = ?');
+            params.push(wcCustomerId);
+        }
+        if (userEmail) {
+            conditions.push('pm.meta_value = ?');
+            params.push(userEmail);
+        }
+
         // Query orders using the WooCommerce customer_id (primary) or billing email (fallback)
         const query = `
             SELECT DISTINCT
@@ -266,11 +279,11 @@ router.get('/user/activity', verifyToken, async (req, res) => {
             FROM el1wc_order_product_lookup AS lookup
             LEFT JOIN el1posts AS posts ON lookup.product_id = posts.ID
             LEFT JOIN el1postmeta AS pm ON lookup.order_id = pm.post_id AND pm.meta_key = '_billing_email'
-            WHERE lookup.customer_id = ? OR pm.meta_value = ?
+            WHERE ${conditions.join(' OR ')}
             ORDER BY lookup.date_created DESC
             LIMIT 10;
         `;
-        const [activity] = await db.query(query, [wcCustomerId || 0, userEmail || '']);
+        const [activity] = await db.query(query, params);
         res.json(activity);
     } catch (error) {
         console.error('Get activity error:', error);
@@ -309,14 +322,27 @@ router.get('/user/savings', verifyToken, async (req, res) => {
             return res.json({ totalSavings: 0 });
         }
 
+        // Build query dynamically based on available identifiers to avoid matching unrelated orders
+        const conditions = [];
+        const params = [];
+        
+        if (wcCustomerId) {
+            conditions.push('o.customer_id = ?');
+            params.push(wcCustomerId);
+        }
+        if (userEmail) {
+            conditions.push('pm.meta_value = ?');
+            params.push(userEmail);
+        }
+
         // Find savings from orders linked by WooCommerce customer_id OR billing email
         const [savingsResult] = await db.query(
             `SELECT SUM(d.cart_discount) as totalSavings 
              FROM el1wdr_order_item_discounts d
              INNER JOIN el1wc_order_product_lookup o ON d.order_id = o.order_id
              LEFT JOIN el1postmeta pm ON o.order_id = pm.post_id AND pm.meta_key = '_billing_email'
-             WHERE o.customer_id = ? OR pm.meta_value = ?`,
-            [wcCustomerId || 0, userEmail || '']
+             WHERE ${conditions.join(' OR ')}`,
+            params
         );
 
         // The result of SUM can be null if no rows are found or all values are null. Coalesce to 0.
