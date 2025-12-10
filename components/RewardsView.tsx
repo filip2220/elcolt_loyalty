@@ -72,22 +72,35 @@ const AppOfferCard: React.FC<AppOfferCardProps> = ({ offer, onRedeem, isRedeemin
                         {offer.description}
                     </p>
                 )}
-                
+
                 {/* Applicable products/categories */}
                 {offer.applicable_products && offer.applicable_products.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-slate-700/50">
-                        <p className="text-stone-500 text-xs uppercase tracking-wider mb-1.5">
+                        <p className="text-stone-500 text-xs uppercase tracking-wider mb-2">
                             {offer.applicable_products[0]?.isCategory ? 'Dotyczy kategorii:' : 'Dotyczy produktów:'}
                         </p>
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                             {offer.applicable_products.slice(0, 3).map((product, idx) => (
-                                <p key={idx} className="text-stone-300 text-sm leading-snug flex items-start gap-1.5">
-                                    <span className="text-forest-500 mt-0.5">•</span>
-                                    <span className="line-clamp-2">{product.name}</span>
-                                </p>
+                                <div key={idx} className="flex items-center gap-2">
+                                    {/* Product thumbnail or fallback bullet */}
+                                    {product.thumbnail_url && !product.isCategory ? (
+                                        <img
+                                            src={api.getProxiedImageUrl(product.thumbnail_url)}
+                                            alt={product.name}
+                                            className="w-10 h-10 rounded-sm object-cover flex-shrink-0 border border-slate-700/50 bg-slate-800"
+                                            onError={(e) => {
+                                                // Hide image on error, show bullet instead
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                            }}
+                                        />
+                                    ) : (
+                                        <span className="text-forest-500 flex-shrink-0 w-10 h-10 flex items-center justify-center">•</span>
+                                    )}
+                                    <span className="text-stone-300 text-sm leading-snug line-clamp-2">{product.name}</span>
+                                </div>
                             ))}
                             {offer.applicable_products.length > 3 && (
-                                <p className="text-stone-500 text-xs">
+                                <p className="text-stone-500 text-xs pl-12">
                                     +{offer.applicable_products.length - 3} więcej...
                                 </p>
                             )}

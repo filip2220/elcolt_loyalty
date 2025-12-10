@@ -191,7 +191,7 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
                 <p className="text-sm font-semibold text-cream">{user?.name}</p>
                 <p className="text-xs text-stone-500">{user?.email}</p>
               </div>
-              
+
               {/* Cart Button */}
               <button
                 onClick={handleCartClick}

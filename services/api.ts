@@ -216,10 +216,27 @@ export const getAppOffers = async (): Promise<AppOffersResponse> => {
 // =====================================================
 
 /**
- * Create a new order
+ * Create a checkout order and get redirect URL
  * @param token - JWT authentication token
- * @param orderData - Order details including items and billing info
+ * @param items - Cart items with product_id and quantity
+ * @returns Checkout URL to redirect user to store checkout
  */
+export const createCheckout = async (
+  token: string,
+  items: { product_id: number; quantity: number }[]
+): Promise<import('../types').CheckoutResponse> => {
+  const response = await fetch(`${API_BASE_URL}/checkout/create-order`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ items }),
+  });
+  return handleResponse(response);
+};
+
+// Legacy function - kept for backward compatibility
 export const createOrder = async (token: string, orderData: import('../types').CreateOrderRequest): Promise<import('../types').Order> => {
   const response = await fetch(`${API_BASE_URL}/orders`, {
     method: 'POST',
@@ -231,5 +248,4 @@ export const createOrder = async (token: string, orderData: import('../types').C
   });
   return handleResponse(response);
 };
-
 

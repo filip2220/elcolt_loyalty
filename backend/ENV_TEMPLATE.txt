@@ -91,5 +91,18 @@ SMTP_FROM=
 # Log level: error, warn, info, debug
 LOG_LEVEL=info
 
+# ===========================================
+# WOOCOMMERCE REST API (Checkout Integration)
+# ===========================================
+# Required for redirecting users to checkout with pre-filled cart
+# Generate keys at: WooCommerce → Settings → Advanced → REST API
 
+# Your WooCommerce store URL
+WC_STORE_URL=https://etaktyczne.pl
+
+# Consumer Key (starts with ck_)
+WC_CONSUMER_KEY=ck_your_consumer_key_here
+
+# Consumer Secret (starts with cs_)
+WC_CONSUMER_SECRET=cs_your_consumer_secret_here
 

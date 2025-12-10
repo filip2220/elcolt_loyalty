@@ -1270,6 +1270,50 @@ router.get('/sales/app-exclusive', async (req, res) => {
             };
         });
 
+        // Collect all product IDs (non-categories) to fetch thumbnails
+        const allProductIds = [];
+        for (const offer of offersWithProductInfo) {
+            for (const product of offer.applicable_products) {
+                if (!product.isCategory && product.id) {
+                    const productId = parseInt(product.id, 10);
+                    if (!isNaN(productId) && !allProductIds.includes(productId)) {
+                        allProductIds.push(productId);
+                    }
+                }
+            }
+        }
+
+        // Fetch thumbnails for all products in a single query
+        let thumbnailMap = {};
+        if (allProductIds.length > 0) {
+            const placeholders = allProductIds.map(() => '?').join(',');
+            const thumbnailQuery = `
+                SELECT 
+                    pm.post_id as product_id,
+                    att.guid as thumbnail_url
+                FROM el1postmeta pm
+                INNER JOIN el1posts att ON pm.meta_value = att.ID
+                WHERE pm.meta_key = '_thumbnail_id'
+                  AND pm.post_id IN (${placeholders})
+            `;
+            const [thumbnails] = await db.query(thumbnailQuery, allProductIds);
+
+            // Create a map of product_id -> thumbnail_url
+            for (const row of thumbnails) {
+                thumbnailMap[row.product_id] = fixImageUrl(row.thumbnail_url);
+            }
+        }
+
+        // Add thumbnail_url to each applicable product
+        for (const offer of offersWithProductInfo) {
+            for (const product of offer.applicable_products) {
+                if (!product.isCategory) {
+                    const productId = parseInt(product.id, 10);
+                    product.thumbnail_url = thumbnailMap[productId] || null;
+                }
+            }
+        }
+
         res.json({
             offers: offersWithProductInfo,
             count: offersWithProductInfo.length
@@ -1281,111 +1325,132 @@ router.get('/sales/app-exclusive', async (req, res) => {
     }
 });
 
+
 /**
- * POST /api/orders
- * Creates a new WooCommerce order for the authenticated user.
+ * POST /api/checkout/create-order
+ * Creates a pending order via WooCommerce REST API and returns checkout URL.
+ * This allows the user to be redirected to the store checkout with pre-filled cart and billing info.
  * Protected: Requires authentication token.
  */
-router.post('/orders', verifyToken, async (req, res) => {
-    const { items, billing_email, billing_first_name, billing_last_name, billing_phone } = req.body;
+router.post('/checkout/create-order', verifyToken, async (req, res) => {
+    const { items } = req.body;
 
     // Validation
     if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: 'Zamówienie musi zawierać przynajmniej jeden produkt.' });
     }
 
-    if (!billing_email || !billing_first_name || !billing_last_name) {
-        return res.status(400).json({ message: 'Dane rozliczeniowe są wymagane.' });
+    // Validate WooCommerce API credentials
+    const wcStoreUrl = process.env.WC_STORE_URL;
+    const wcConsumerKey = process.env.WC_CONSUMER_KEY;
+    const wcConsumerSecret = process.env.WC_CONSUMER_SECRET;
+
+    if (!wcStoreUrl || !wcConsumerKey || !wcConsumerSecret) {
+        console.error('WooCommerce API credentials not configured');
+        return res.status(500).json({ message: 'Konfiguracja sklepu nie jest kompletna. Skontaktuj się z administratorem.' });
     }
 
-    const connection = await db.pool.getConnection();
     try {
-        await connection.beginTransaction();
-
-        // Get user email if not provided
-        const [users] = await connection.execute('SELECT user_email FROM el1users WHERE ID = ?', [req.userId]);
+        // Get user data including billing info from database
+        const [users] = await db.query('SELECT ID, user_email, display_name FROM el1users WHERE ID = ?', [req.userId]);
         if (users.length === 0) {
-            await connection.rollback();
             return res.status(404).json({ message: 'Użytkownik nie znaleziony.' });
         }
+        const user = users[0];
 
-        const userEmail = billing_email || users[0].user_email;
-
-        // Calculate order total
-        let orderTotal = 0;
-        for (const item of items) {
-            const price = parseFloat(item.price) || 0;
-            orderTotal += price * (item.quantity || 1);
-        }
-
-        // Create order post
-        const now = new Date();
-        const [orderResult] = await connection.execute(
-            `INSERT INTO el1posts (
-                post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, 
-                post_status, comment_status, ping_status, post_password, post_name, to_ping, pinged,
-                post_modified, post_modified_gmt, post_content_filtered, post_parent, guid, menu_order, 
-                post_type, post_mime_type, comment_count
-            ) VALUES (
-                ?, NOW(), NOW(), '', ?, '', 
-                'wc-processing', 'open', 'closed', '', '', '', '',
-                NOW(), NOW(), '', 0, '', 0,
-                'shop_order', '', 0
-            )`,
-            [req.userId, `Order &ndash; ${now.toLocaleString('pl-PL')}`]
+        // Get user metadata (first_name, last_name, phone)
+        const [userMeta] = await db.query(
+            `SELECT meta_key, meta_value FROM el1usermeta 
+             WHERE user_id = ? AND meta_key IN ('first_name', 'last_name', 'billing_phone')`,
+            [req.userId]
         );
-        const orderId = orderResult.insertId;
 
-        // Add order metadata
-        await Promise.all([
-            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_billing_email', userEmail]),
-            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_billing_first_name', billing_first_name]),
-            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_billing_last_name', billing_last_name]),
-            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_billing_phone', billing_phone || '']),
-            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_order_total', orderTotal.toFixed(2)]),
-            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_customer_user', req.userId]),
-            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_payment_method', 'cod']),
-            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_payment_method_title', 'Płatność przy odbiorze'])
-        ]);
+        // Build metadata object
+        const metadata = {};
+        userMeta.forEach(row => {
+            metadata[row.meta_key] = row.meta_value;
+        });
 
-        // Add order items
-        for (const item of items) {
-            // Create order item
-            const [itemResult] = await connection.execute(
-                `INSERT INTO el1woocommerce_order_items (order_item_name, order_item_type, order_id) VALUES (?, 'line_item', ?)`,
-                [`Product #${item.product_id}`, orderId]
-            );
-            const orderItemId = itemResult.insertId;
+        const firstName = metadata['first_name'] || user.display_name.split(' ')[0] || 'Klient';
+        const lastName = metadata['last_name'] || user.display_name.split(' ').slice(1).join(' ') || '';
+        const phone = metadata['billing_phone'] || '';
 
-            // Add item metadata
-            const itemPrice = parseFloat(item.price) || 0;
-            const itemQuantity = item.quantity || 1;
-            const itemTotal = itemPrice * itemQuantity;
+        // Prepare line items for WooCommerce API
+        const lineItems = items.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity || 1
+        }));
 
-            await Promise.all([
-                connection.execute('INSERT INTO el1woocommerce_order_itemmeta (order_item_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderItemId, '_product_id', item.product_id]),
-                connection.execute('INSERT INTO el1woocommerce_order_itemmeta (order_item_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderItemId, '_qty', itemQuantity]),
-                connection.execute('INSERT INTO el1woocommerce_order_itemmeta (order_item_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderItemId, '_line_subtotal', itemPrice.toFixed(2)]),
-                connection.execute('INSERT INTO el1woocommerce_order_itemmeta (order_item_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderItemId, '_line_total', itemTotal.toFixed(2)])
-            ]);
+        // Create order via WooCommerce REST API
+        // Note: customer_id in WC REST API expects WordPress user ID (from el1users.ID)
+        const https = require('https');
+        const orderData = {
+            status: 'pending',
+            billing: {
+                first_name: firstName,
+                last_name: lastName,
+                email: user.user_email,
+                phone: phone
+            },
+            line_items: lineItems,
+            customer_id: req.userId, // WordPress user ID for proper order association
+            set_paid: false
+        };
+
+        // Make request to WooCommerce REST API
+        const wcApiUrl = `${wcStoreUrl}/wp-json/wc/v3/orders`;
+        const auth = Buffer.from(`${wcConsumerKey}:${wcConsumerSecret}`).toString('base64');
+
+        const response = await fetch(wcApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${auth}`
+            },
+            body: JSON.stringify(orderData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('WooCommerce API error:', response.status, errorData);
+            return res.status(500).json({
+                message: 'Nie udało się utworzyć zamówienia w sklepie. Spróbuj ponownie.'
+            });
         }
 
-        await connection.commit();
+        const wcOrder = await response.json();
+
+        // Build the final checkout URL (where user ends up after login)
+        // Format: /kasa/order-pay/{order_id}/?pay_for_order=true&key={order_key}
+        const finalCheckoutUrl = `${wcStoreUrl}/kasa/order-pay/${wcOrder.id}/?pay_for_order=true&key=${wcOrder.order_key}`;
+
+        // Generate a one-time login token for seamless WordPress login
+        const loginToken = crypto.randomBytes(32).toString('hex');
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // Expires in 5 minutes
+
+        // Store the login token in database
+        await db.query(
+            `INSERT INTO el1app_login_tokens (user_id, token, redirect_url, created_at, expires_at, used) 
+             VALUES (?, ?, ?, ?, ?, 0)`,
+            [req.userId, loginToken, finalCheckoutUrl, now, expiresAt]
+        );
+
+        // Build the auto-login URL (WordPress will process this, log user in, then redirect to checkout)
+        const autoLoginUrl = `${wcStoreUrl}/?app_login_token=${loginToken}`;
 
         res.status(201).json({
-            order_id: orderId,
-            status: 'processing',
-            total: orderTotal.toFixed(2),
-            date_created: now.toISOString()
+            orderId: wcOrder.id,
+            checkoutUrl: autoLoginUrl, // This now goes through auto-login first
+            orderKey: wcOrder.order_key,
+            total: wcOrder.total
         });
 
     } catch (error) {
-        await connection.rollback();
-        console.error('Create order error:', error);
+        console.error('Create checkout order error:', error);
         res.status(500).json({ message: 'Błąd serwera podczas tworzenia zamówienia.' });
-    } finally {
-        connection.release();
     }
 });
 
 module.exports = router;
+

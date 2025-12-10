@@ -113,6 +113,7 @@ export interface ApplicableProduct {
   id: string;
   name: string;
   isCategory?: boolean;
+  thumbnail_url?: string | null;
 }
 
 // App-exclusive offer (from WPLoyalty)
@@ -158,9 +159,22 @@ export interface Cart {
 export interface OrderItem {
   product_id: number;
   quantity: number;
-  price: string;
 }
 
+// Request to create a checkout order (simplified - billing info fetched from DB)
+export interface CreateCheckoutRequest {
+  items: OrderItem[];
+}
+
+// Response from the checkout/create-order endpoint
+export interface CheckoutResponse {
+  orderId: number;
+  checkoutUrl: string;
+  orderKey: string;
+  total: string;
+}
+
+// Legacy types (kept for reference)
 export interface CreateOrderRequest {
   items: OrderItem[];
   billing_email: string;
@@ -175,4 +189,3 @@ export interface Order {
   total: string;
   date_created: string;
 }
-

@@ -59,41 +59,29 @@ const CartView: React.FC = () => {
         setOrderError(null);
 
         try {
-            // Prepare order items
+            // Prepare order items (only product_id and quantity needed)
             const orderItems = cart.items.map(item => ({
                 product_id: item.product.id,
-                quantity: item.quantity,
-                price: item.product.sale_price || item.product.price || item.product.regular_price || '0'
+                quantity: item.quantity
             }));
 
-            // Get user's name from user object
-            const nameParts = (user.name || '').split(' ');
-            const firstName = nameParts[0] || 'Customer';
-            const lastName = nameParts.slice(1).join(' ') || 'Customer';
+            // Create checkout order via WooCommerce API
+            const result = await api.createCheckout(token, orderItems);
 
-            // Create order via API
-            await api.createOrder(token, {
-                items: orderItems,
-                billing_email: user.email,
-                billing_first_name: firstName,
-                billing_last_name: lastName,
-                billing_phone: ''
-            });
-            
-            setOrderSuccess(true);
+            // Clear cart before redirect
             clearCart();
-            
-            // Reset success message after 5 seconds
-            setTimeout(() => {
-                setOrderSuccess(false);
-            }, 5000);
+
+            // Redirect to WooCommerce checkout page
+            window.location.href = result.checkoutUrl;
+
         } catch (error) {
             console.error('Checkout failed', error);
-            setOrderError('Nie udało się złożyć zamówienia. Spróbuj ponownie.');
+            setOrderError('Nie udało się utworzyć zamówienia. Spróbuj ponownie.');
         } finally {
             setCheckingOut(false);
         }
     };
+
 
     if (orderSuccess) {
         return (
@@ -190,7 +178,7 @@ const CartView: React.FC = () => {
                                             <h3 className="font-display text-base font-bold text-cream mb-2 line-clamp-2">
                                                 {item.product.name}
                                             </h3>
-                                            
+
                                             <div className="flex items-baseline gap-2 mb-3">
                                                 <span className="font-mono text-lg font-bold text-brass-500">
                                                     {formatPrice(item.product.sale_price || item.product.price || item.product.regular_price)}
@@ -257,7 +245,7 @@ const CartView: React.FC = () => {
                     <div className="lg:col-span-1">
                         <Card variant="bordered" className="sticky top-20">
                             <h2 className="font-display text-xl font-bold text-cream mb-4">Podsumowanie</h2>
-                            
+
                             <div className="space-y-3 mb-6">
                                 <div className="flex justify-between text-stone-400">
                                     <span>Produkty ({cart.itemCount})</span>
@@ -275,8 +263,8 @@ const CartView: React.FC = () => {
                                 </div>
                             </div>
 
-                            <Button 
-                                variant="primary" 
+                            <Button
+                                variant="primary"
                                 className="w-full mb-3"
                                 onClick={handleCheckout}
                                 disabled={checkingOut}
