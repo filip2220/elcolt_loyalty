@@ -31,6 +31,49 @@ async function checkPassword(password, hash) {
 
 const router = express.Router();
 
+// =====================================================
+// IMAGE URL HELPER
+// =====================================================
+
+/**
+ * WordPress on cPanel often stores image URLs with technical server domains
+ * which don't work properly in browsers. This helper replaces such domains with the actual site domain.
+ * 
+ * Known technical domain patterns:
+ * - boundless-olive-alligator.51-68-45-82.cpanel.site (current cPanel installation)
+ * - srv123456.hstgr.cloud (Hostinger)
+ * - *.cpanel.site (generic cPanel)
+ * 
+ * @param {string|null} url - The original image URL from WordPress database
+ * @returns {string|null} - The fixed URL with correct domain, or null if input was null
+ */
+function fixImageUrl(url) {
+    if (!url) return null;
+
+    // The new production domain
+    const newDomain = 'https://etaktyczne.pl';
+
+    // Pattern to match common cPanel technical domain formats
+    const technicalDomainPatterns = [
+        // Current cPanel installation: boundless-olive-alligator.51-68-45-82.cpanel.site
+        /^https?:\/\/[a-z0-9-]+\.[0-9-]+\.cpanel\.site/i,
+        // Hostinger technical domains
+        /^https?:\/\/srv\d+\.hstgr\.(cloud|io)/i,
+        /^https?:\/\/server\d+\.hostinger\.com/i,
+        // Generic cPanel subdomains
+        /^https?:\/\/[a-z0-9-]+\.hstgr\.(cloud|io)/i,
+    ];
+
+    // Try each pattern
+    for (const pattern of technicalDomainPatterns) {
+        if (pattern.test(url)) {
+            return url.replace(pattern, newDomain);
+        }
+    }
+
+    return url;
+}
+
 // Email transporter configuration for password reset emails
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -834,13 +877,19 @@ router.get('/products', async (req, res) => {
 
         const [products] = await db.query(query, [limit, offset]);
 
+        // Fix image URLs (replace technical domain with actual domain)
+        const productsWithFixedUrls = products.map(product => ({
+            ...product,
+            thumbnail_url: fixImageUrl(product.thumbnail_url)
+        }));
+
         // Get total count for pagination
         const [countResult] = await db.query(
             "SELECT COUNT(*) as total FROM el1posts WHERE post_type = 'product' AND post_status = 'publish'"
         );
 
         res.json({
-            products,
+            products: productsWithFixedUrls,
             pagination: {
                 limit,
                 offset,
@@ -910,7 +959,7 @@ router.get('/products/:id', async (req, res) => {
             if (imageData.length > 0) {
                 featuredImage = {
                     id: imageData[0].id,
-                    url: imageData[0].url,
+                    url: fixImageUrl(imageData[0].url),
                     title: imageData[0].title
                 };
             }
@@ -938,7 +987,11 @@ router.get('/products/:id', async (req, res) => {
                     WHERE p.ID IN (${placeholders}) AND p.post_type = 'attachment'
                 `, galleryIds);
 
-                galleryImages = images;
+                // Fix image URLs for gallery images
+                galleryImages = images.map(img => ({
+                    ...img,
+                    url: fixImageUrl(img.url)
+                }));
             }
         }
 
@@ -1041,9 +1094,13 @@ router.get('/products/:id/images', async (req, res) => {
             WHERE p.ID IN (${placeholders}) AND p.post_type = 'attachment'
         `, uniqueImageIds);
 
-        // Create a map for quick lookup
+        // Fix image URLs and create a map for quick lookup
+        const fixedImages = images.map(img => ({
+            ...img,
+            url: fixImageUrl(img.url)
+        }));
         const imageMap = {};
-        images.forEach(img => { imageMap[img.id] = img; });
+        fixedImages.forEach(img => { imageMap[img.id] = img; });
 
         // Separate featured and gallery
         const featuredId = thumbnailMeta.length > 0 ? parseInt(thumbnailMeta[0].meta_value) : null;
@@ -1057,7 +1114,7 @@ router.get('/products/:id/images', async (req, res) => {
         res.json({
             featured_image: featuredImage,
             gallery_images: galleryImages,
-            all_images: images
+            all_images: fixedImages
         });
 
     } catch (error) {
@@ -1111,6 +1168,7 @@ router.get('/sales/public', async (req, res) => {
 
             return {
                 ...product,
+                thumbnail_url: fixImageUrl(product.thumbnail_url),
                 discount_percent: discountPercent
             };
         });
@@ -1142,7 +1200,9 @@ router.get('/sales/app-exclusive', async (req, res) => {
                 discount_type,
                 discount_value,
                 require_point as points_required,
-                reward_type
+                reward_type,
+                free_product,
+                conditions
             FROM el1wlr_rewards 
             WHERE active = 1 
               AND is_show_reward = 1
@@ -1151,14 +1211,180 @@ router.get('/sales/app-exclusive', async (req, res) => {
 
         const [offers] = await db.query(query);
 
+        // Parse conditions to extract product info for display
+        const offersWithProductInfo = offers.map(offer => {
+            let applicable_products = [];
+
+            // Parse conditions JSON to extract product names
+            if (offer.conditions) {
+                try {
+                    const conditions = JSON.parse(offer.conditions);
+                    for (const condition of conditions) {
+                        if (condition.type === 'products' && condition.options?.value) {
+                            // Extract product labels from the condition
+                            const products = condition.options.value;
+                            if (Array.isArray(products)) {
+                                applicable_products = products.map(p => ({
+                                    id: p.value,
+                                    name: p.label?.replace(/^#\d+\s+/, '') || `Produkt #${p.value}`
+                                }));
+                            }
+                        } else if (condition.type === 'product_category' && condition.options?.value) {
+                            // Handle category-based conditions
+                            const categories = condition.options.value;
+                            if (Array.isArray(categories)) {
+                                applicable_products = categories.map(c => ({
+                                    id: c.value,
+                                    name: `Kategoria: ${c.label}`,
+                                    isCategory: true
+                                }));
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to parse conditions for offer', offer.id, e);
+                }
+            }
+
+            // Parse free_product if present (for free product rewards)
+            if (offer.free_product) {
+                try {
+                    const freeProducts = JSON.parse(offer.free_product);
+                    if (Array.isArray(freeProducts)) {
+                        applicable_products = freeProducts.map(p => ({
+                            id: p.value,
+                            name: p.label?.replace(/^#\d+\s+/, '') || `Produkt #${p.value}`
+                        }));
+                    }
+                } catch (e) {
+                    console.error('Failed to parse free_product for offer', offer.id, e);
+                }
+            }
+
+            // Remove raw conditions and free_product from response
+            const { conditions: _, free_product: __, ...offerData } = offer;
+
+            return {
+                ...offerData,
+                applicable_products
+            };
+        });
+
         res.json({
-            offers,
-            count: offers.length
+            offers: offersWithProductInfo,
+            count: offersWithProductInfo.length
         });
 
     } catch (error) {
         console.error('Get app-exclusive offers error:', error);
         res.status(500).json({ message: 'Błąd serwera podczas pobierania ofert.' });
+    }
+});
+
+/**
+ * POST /api/orders
+ * Creates a new WooCommerce order for the authenticated user.
+ * Protected: Requires authentication token.
+ */
+router.post('/orders', verifyToken, async (req, res) => {
+    const { items, billing_email, billing_first_name, billing_last_name, billing_phone } = req.body;
+
+    // Validation
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: 'Zamówienie musi zawierać przynajmniej jeden produkt.' });
+    }
+
+    if (!billing_email || !billing_first_name || !billing_last_name) {
+        return res.status(400).json({ message: 'Dane rozliczeniowe są wymagane.' });
+    }
+
+    const connection = await db.pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Get user email if not provided
+        const [users] = await connection.execute('SELECT user_email FROM el1users WHERE ID = ?', [req.userId]);
+        if (users.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: 'Użytkownik nie znaleziony.' });
+        }
+
+        const userEmail = billing_email || users[0].user_email;
+
+        // Calculate order total
+        let orderTotal = 0;
+        for (const item of items) {
+            const price = parseFloat(item.price) || 0;
+            orderTotal += price * (item.quantity || 1);
+        }
+
+        // Create order post
+        const now = new Date();
+        const [orderResult] = await connection.execute(
+            `INSERT INTO el1posts (
+                post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, 
+                post_status, comment_status, ping_status, post_password, post_name, to_ping, pinged,
+                post_modified, post_modified_gmt, post_content_filtered, post_parent, guid, menu_order, 
+                post_type, post_mime_type, comment_count
+            ) VALUES (
+                ?, NOW(), NOW(), '', ?, '', 
+                'wc-processing', 'open', 'closed', '', '', '', '',
+                NOW(), NOW(), '', 0, '', 0,
+                'shop_order', '', 0
+            )`,
+            [req.userId, `Order &ndash; ${now.toLocaleString('pl-PL')}`]
+        );
+        const orderId = orderResult.insertId;
+
+        // Add order metadata
+        await Promise.all([
+            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_billing_email', userEmail]),
+            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_billing_first_name', billing_first_name]),
+            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_billing_last_name', billing_last_name]),
+            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_billing_phone', billing_phone || '']),
+            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_order_total', orderTotal.toFixed(2)]),
+            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_customer_user', req.userId]),
+            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_payment_method', 'cod']),
+            connection.execute('INSERT INTO el1postmeta (post_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderId, '_payment_method_title', 'Płatność przy odbiorze'])
+        ]);
+
+        // Add order items
+        for (const item of items) {
+            // Create order item
+            const [itemResult] = await connection.execute(
+                `INSERT INTO el1woocommerce_order_items (order_item_name, order_item_type, order_id) VALUES (?, 'line_item', ?)`,
+                [`Product #${item.product_id}`, orderId]
+            );
+            const orderItemId = itemResult.insertId;
+
+            // Add item metadata
+            const itemPrice = parseFloat(item.price) || 0;
+            const itemQuantity = item.quantity || 1;
+            const itemTotal = itemPrice * itemQuantity;
+
+            await Promise.all([
+                connection.execute('INSERT INTO el1woocommerce_order_itemmeta (order_item_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderItemId, '_product_id', item.product_id]),
+                connection.execute('INSERT INTO el1woocommerce_order_itemmeta (order_item_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderItemId, '_qty', itemQuantity]),
+                connection.execute('INSERT INTO el1woocommerce_order_itemmeta (order_item_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderItemId, '_line_subtotal', itemPrice.toFixed(2)]),
+                connection.execute('INSERT INTO el1woocommerce_order_itemmeta (order_item_id, meta_key, meta_value) VALUES (?, ?, ?)', [orderItemId, '_line_total', itemTotal.toFixed(2)])
+            ]);
+        }
+
+        await connection.commit();
+
+        res.status(201).json({
+            order_id: orderId,
+            status: 'processing',
+            total: orderTotal.toFixed(2),
+            date_created: now.toISOString()
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error('Create order error:', error);
+        res.status(500).json({ message: 'Błąd serwera podczas tworzenia zamówienia.' });
+    } finally {
+        connection.release();
     }
 });
 

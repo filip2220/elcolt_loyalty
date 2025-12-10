@@ -68,9 +68,31 @@ const AppOfferCard: React.FC<AppOfferCardProps> = ({ offer, onRedeem, isRedeemin
                 {/* Offer name & description */}
                 <p className="text-brass-400 text-sm font-medium mb-2">{offer.name}</p>
                 {offer.description && (
-                    <p className="text-stone-400 text-sm leading-relaxed">
+                    <p className="text-stone-400 text-sm leading-relaxed mb-2">
                         {offer.description}
                     </p>
+                )}
+                
+                {/* Applicable products/categories */}
+                {offer.applicable_products && offer.applicable_products.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-slate-700/50">
+                        <p className="text-stone-500 text-xs uppercase tracking-wider mb-1.5">
+                            {offer.applicable_products[0]?.isCategory ? 'Dotyczy kategorii:' : 'Dotyczy produktów:'}
+                        </p>
+                        <div className="space-y-1">
+                            {offer.applicable_products.slice(0, 3).map((product, idx) => (
+                                <p key={idx} className="text-stone-300 text-sm leading-snug flex items-start gap-1.5">
+                                    <span className="text-forest-500 mt-0.5">•</span>
+                                    <span className="line-clamp-2">{product.name}</span>
+                                </p>
+                            ))}
+                            {offer.applicable_products.length > 3 && (
+                                <p className="text-stone-500 text-xs">
+                                    +{offer.applicable_products.length - 3} więcej...
+                                </p>
+                            )}
+                        </div>
+                    </div>
                 )}
 
                 {/* Points required */}

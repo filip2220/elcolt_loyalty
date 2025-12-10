@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../hooks/useCart';
 import Button from './Button';
 import { View } from '../App';
 
@@ -168,11 +169,13 @@ const MobileSalesIcon = () => (
 
 const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView }) => {
   const { user, logout } = useAuth();
+  const { cart } = useCart();
 
   const handleDashboardClick = useCallback(() => setActiveView('dashboard'), [setActiveView]);
   const handleActivityClick = useCallback(() => setActiveView('activity'), [setActiveView]);
   const handleRewardsClick = useCallback(() => setActiveView('rewards'), [setActiveView]);
   const handleSalesClick = useCallback(() => setActiveView('sales'), [setActiveView]);
+  const handleCartClick = useCallback(() => setActiveView('cart'), [setActiveView]);
 
   return (
     <>
@@ -188,6 +191,23 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
                 <p className="text-sm font-semibold text-cream">{user?.name}</p>
                 <p className="text-xs text-stone-500">{user?.email}</p>
               </div>
+              
+              {/* Cart Button */}
+              <button
+                onClick={handleCartClick}
+                className="relative p-2 hover:bg-slate-800 rounded-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brass-500/50"
+                aria-label="Koszyk"
+              >
+                <svg className="w-6 h-6 text-stone-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                {cart.itemCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rust-600 text-cream text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {cart.itemCount > 9 ? '9+' : cart.itemCount}
+                  </span>
+                )}
+              </button>
+
               <Button onClick={logout} variant="ghost" size="sm">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

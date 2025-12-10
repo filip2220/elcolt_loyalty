@@ -211,4 +211,25 @@ export const getAppOffers = async (): Promise<AppOffersResponse> => {
   return handleResponse(response);
 };
 
+// =====================================================
+// CART & ORDER API FUNCTIONS
+// =====================================================
+
+/**
+ * Create a new order
+ * @param token - JWT authentication token
+ * @param orderData - Order details including items and billing info
+ */
+export const createOrder = async (token: string, orderData: import('../types').CreateOrderRequest): Promise<import('../types').Order> => {
+  const response = await fetch(`${API_BASE_URL}/orders`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(orderData),
+  });
+  return handleResponse(response);
+};
+
 

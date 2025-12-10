@@ -108,6 +108,13 @@ export interface SaleProduct {
   sale_to: string | null;
 }
 
+// Product or category that a discount applies to
+export interface ApplicableProduct {
+  id: string;
+  name: string;
+  isCategory?: boolean;
+}
+
 // App-exclusive offer (from WPLoyalty)
 export interface AppOffer {
   id: number;
@@ -118,6 +125,7 @@ export interface AppOffer {
   discount_value: number;
   points_required: number;
   reward_type: 'redeem_point' | 'redeem_coupon';
+  applicable_products: ApplicableProduct[];
 }
 
 // Response from GET /api/sales/public
@@ -130,5 +138,41 @@ export interface PublicSalesResponse {
 export interface AppOffersResponse {
   offers: AppOffer[];
   count: number;
+}
+
+// =====================================================
+// CART & CHECKOUT TYPES
+// =====================================================
+
+export interface CartItem {
+  product: Product;
+  quantity: number;
+}
+
+export interface Cart {
+  items: CartItem[];
+  total: number;
+  itemCount: number;
+}
+
+export interface OrderItem {
+  product_id: number;
+  quantity: number;
+  price: string;
+}
+
+export interface CreateOrderRequest {
+  items: OrderItem[];
+  billing_email: string;
+  billing_first_name: string;
+  billing_last_name: string;
+  billing_phone: string;
+}
+
+export interface Order {
+  order_id: number;
+  status: string;
+  total: string;
+  date_created: string;
 }
 

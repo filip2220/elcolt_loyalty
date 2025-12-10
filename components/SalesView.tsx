@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SaleProduct, Product } from '../types';
 import * as api from '../services/api';
+import { useCart } from '../hooks/useCart';
 import Spinner from './Spinner';
 import Card from './Card';
 import Button from './Button';
@@ -28,6 +29,30 @@ const formatPrice = (price: string | null): string => {
         style: 'currency',
         currency: 'PLN'
     }).format(num);
+};
+
+// WordPress-like autop function to convert newlines to paragraphs
+const wpautop = (text: string): string => {
+    if (!text) return '';
+
+    // Normalize line endings
+    let content = text.replace(/\r\n|\r/g, '\n');
+
+    // If content already has block-level HTML, leave it alone
+    if (/<(p|div|ul|ol|table|blockquote|h[1-6])/i.test(content)) {
+        // Just ensure proper paragraph spacing for existing HTML
+        return content;
+    }
+
+    // Split by double newlines (paragraph breaks)
+    const paragraphs = content.split(/\n\s*\n/);
+
+    // Wrap each paragraph in <p> tags and convert single newlines to <br>
+    return paragraphs
+        .map(p => p.trim())
+        .filter(p => p.length > 0)
+        .map(p => `<p>${p.replace(/\n/g, '<br />')}</p>`)
+        .join('\n');
 };
 
 // Sale Product Card Component
@@ -118,11 +143,15 @@ const SaleProductCard: React.FC<SaleProductCardProps> = ({ product, onClick }) =
 
 // Main SalesView Component
 const SalesView: React.FC = () => {
+    const { addToCart, isInCart, getItemQuantity } = useCart();
     const [publicSales, setPublicSales] = useState<SaleProduct[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-    const [loadingProduct, setLoadingProduct] = useState(false);
+    const [selectedSaleProduct, setSelectedSaleProduct] = useState<SaleProduct | null>(null);
+    const [selectedProductDetails, setSelectedProductDetails] = useState<Product | null>(null);
+    const [loadingDetails, setLoadingDetails] = useState(false);
+    const [addingToCart, setAddingToCart] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
     // Fetch public sales
     useEffect(() => {
@@ -141,20 +170,51 @@ const SalesView: React.FC = () => {
         fetchPublicSales();
     }, []);
 
-    const handleProductClick = async (productId: number) => {
+    const handleProductClick = async (saleProduct: SaleProduct) => {
+        // Show modal immediately with sale data
+        setSelectedSaleProduct(saleProduct);
+        setSelectedProductDetails(null);
+        setCurrentImageIndex(0); // Reset gallery to first image
+
+        // Fetch full details in background
         try {
-            setLoadingProduct(true);
-            const product = await api.getProduct(productId);
-            setSelectedProduct(product);
+            setLoadingDetails(true);
+            const product = await api.getProduct(saleProduct.id);
+            setSelectedProductDetails(product);
         } catch (err) {
-            console.error("Failed to fetch product", err);
+            console.error("Failed to fetch product details", err);
         } finally {
-            setLoadingProduct(false);
+            setLoadingDetails(false);
         }
     };
 
     const handleCloseModal = () => {
-        setSelectedProduct(null);
+        setSelectedSaleProduct(null);
+        setSelectedProductDetails(null);
+        setCurrentImageIndex(0);
+    };
+
+    const handleAddToCart = async () => {
+        if (!selectedSaleProduct) return;
+
+        setAddingToCart(true);
+        try {
+            // Wait for details if still loading
+            if (loadingDetails || !selectedProductDetails) {
+                const product = selectedProductDetails || await api.getProduct(selectedSaleProduct.id);
+                addToCart(product, 1);
+            } else {
+                addToCart(selectedProductDetails, 1);
+            }
+            // Close modal after adding to cart
+            setTimeout(() => {
+                handleCloseModal();
+            }, 500);
+        } catch (err) {
+            console.error('Failed to add to cart', err);
+        } finally {
+            setAddingToCart(false);
+        }
     };
 
     if (loading) {
@@ -212,7 +272,7 @@ const SalesView: React.FC = () => {
                     <div key={product.id} className={`stagger-${(index % 4) + 1} animate-slide-up`}>
                         <SaleProductCard
                             product={product}
-                            onClick={() => handleProductClick(product.id)}
+                            onClick={() => handleProductClick(product)}
                         />
                     </div>
                 ))}
@@ -229,13 +289,13 @@ const SalesView: React.FC = () => {
             )}
 
             {/* Product Detail Modal */}
-            {selectedProduct && (
+            {selectedSaleProduct && (
                 <div
                     className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-950/90 backdrop-blur-sm animate-fade-in"
                     onClick={handleCloseModal}
                 >
                     <div
-                        className="relative w-full sm:max-w-2xl h-[80vh] sm:h-auto sm:max-h-[80vh] bg-slate-900 border-t sm:border border-slate-700/50 rounded-t-xl sm:rounded-sm overflow-hidden shadow-2xl"
+                        className="relative w-full sm:max-w-2xl h-[85vh] sm:h-auto sm:max-h-[85vh] bg-slate-900 border-t sm:border border-slate-700/50 rounded-t-xl sm:rounded-sm overflow-hidden shadow-2xl"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Close button */}
@@ -249,58 +309,194 @@ const SalesView: React.FC = () => {
                             </svg>
                         </button>
 
-                        <div className="flex flex-col sm:flex-row max-h-[80vh] overflow-y-auto">
-                            {/* Image */}
-                            <div className="sm:w-1/2 bg-slate-800">
-                                <div className="aspect-square">
-                                    {selectedProduct.featured_image ? (
-                                        <img
-                                            src={selectedProduct.featured_image.url}
-                                            alt={selectedProduct.name}
-                                            className="w-full h-full object-contain"
-                                            referrerPolicy="no-referrer"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <ProductPlaceholderIcon className="w-24 h-24 text-stone-600" />
-                                        </div>
-                                    )}
-                                </div>
+                        <div className="flex flex-col max-h-[85vh] overflow-y-auto">
+                            {/* Image Gallery */}
+                            <div className="w-full bg-slate-800">
+                                {(() => {
+                                    // Build array of all images
+                                    const allImages: { url: string; title?: string }[] = [];
+
+                                    if (selectedProductDetails?.featured_image) {
+                                        allImages.push(selectedProductDetails.featured_image);
+                                    }
+                                    if (selectedProductDetails?.gallery_images) {
+                                        allImages.push(...selectedProductDetails.gallery_images);
+                                    }
+
+                                    // Fallback to sale product thumbnail if no details yet
+                                    if (allImages.length === 0 && selectedSaleProduct.thumbnail_url) {
+                                        allImages.push({ url: selectedSaleProduct.thumbnail_url });
+                                    }
+
+                                    const hasMultipleImages = allImages.length > 1;
+                                    const currentImage = allImages[currentImageIndex] || null;
+
+                                    return (
+                                        <>
+                                            {/* Main Image */}
+                                            <div className="aspect-square relative">
+                                                {currentImage ? (
+                                                    <img
+                                                        src={currentImage.url}
+                                                        alt={currentImage.title || selectedSaleProduct.name}
+                                                        className="w-full h-full object-contain"
+                                                        referrerPolicy="no-referrer"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <ProductPlaceholderIcon className="w-24 h-24 text-stone-600" />
+                                                    </div>
+                                                )}
+
+                                                {loadingDetails && (
+                                                    <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
+                                                        <Spinner size="md" />
+                                                    </div>
+                                                )}
+
+                                                {/* Navigation Arrows */}
+                                                {hasMultipleImages && (
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1);
+                                                            }}
+                                                            className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-slate-900/70 hover:bg-slate-800 text-cream rounded-full transition-colors"
+                                                            aria-label="Poprzednie zdjęcie"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1);
+                                                            }}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-slate-900/70 hover:bg-slate-800 text-cream rounded-full transition-colors"
+                                                            aria-label="Następne zdjęcie"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                                            </svg>
+                                                        </button>
+
+                                                        {/* Image Counter */}
+                                                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-slate-900/70 px-3 py-1 rounded-full text-xs text-cream font-mono">
+                                                            {currentImageIndex + 1} / {allImages.length}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Thumbnail Strip */}
+                                            {hasMultipleImages && (
+                                                <div className="flex gap-2 p-3 overflow-x-auto bg-slate-850">
+                                                    {allImages.map((img, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setCurrentImageIndex(idx);
+                                                            }}
+                                                            className={`flex-shrink-0 w-16 h-16 rounded-sm overflow-hidden border-2 transition-all ${idx === currentImageIndex
+                                                                ? 'border-rust-500 opacity-100'
+                                                                : 'border-transparent opacity-60 hover:opacity-100'
+                                                                }`}
+                                                        >
+                                                            <img
+                                                                src={img.url}
+                                                                alt={`Zdjęcie ${idx + 1}`}
+                                                                className="w-full h-full object-cover"
+                                                                referrerPolicy="no-referrer"
+                                                            />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
 
                             {/* Details */}
-                            <div className="sm:w-1/2 p-4 sm:p-6">
+                            <div className="p-4 sm:p-6">
                                 <h2 className="font-display text-xl sm:text-2xl font-bold text-cream tracking-wide mb-3">
-                                    {selectedProduct.name}
+                                    {selectedSaleProduct.name}
                                 </h2>
 
                                 {/* Price */}
                                 <div className="flex flex-wrap items-baseline gap-2 sm:gap-3 mb-4">
-                                    {selectedProduct.sale_price && selectedProduct.regular_price ? (
+                                    {selectedSaleProduct.sale_price && selectedSaleProduct.regular_price ? (
                                         <>
                                             <span className="font-mono text-2xl font-bold text-rust-500">
-                                                {formatPrice(selectedProduct.sale_price)}
+                                                {formatPrice(selectedSaleProduct.sale_price)}
                                             </span>
                                             <span className="font-mono text-lg text-stone-500 line-through">
-                                                {formatPrice(selectedProduct.regular_price)}
+                                                {formatPrice(selectedSaleProduct.regular_price)}
                                             </span>
                                             <span className="bg-rust-600/20 text-rust-400 text-xs font-semibold px-2 py-1 rounded-sm uppercase">
-                                                Promocja
+                                                -{selectedSaleProduct.discount_percent}%
                                             </span>
                                         </>
                                     ) : (
                                         <span className="font-mono text-2xl font-bold text-brass-500">
-                                            {formatPrice(selectedProduct.price || selectedProduct.regular_price)}
+                                            {formatPrice(selectedSaleProduct.sale_price || selectedSaleProduct.regular_price)}
                                         </span>
                                     )}
                                 </div>
 
-                                {/* Description */}
-                                {selectedProduct.short_description && (
-                                    <p className="text-stone-300 leading-relaxed text-sm">
-                                        {new DOMParser().parseFromString(selectedProduct.short_description, 'text/html').body.textContent}
+                                {/* Short Description */}
+                                {selectedProductDetails?.short_description && (
+                                    <p className="text-stone-300 leading-relaxed text-sm mb-4">
+                                        {new DOMParser().parseFromString(selectedProductDetails.short_description, 'text/html').body.textContent}
                                     </p>
                                 )}
+
+                                {/* Full Description */}
+                                {selectedProductDetails?.description && (
+                                    <div className="mb-6">
+                                        <h3 className="text-stone-400 text-xs uppercase tracking-wider font-semibold mb-3">Opis produktu</h3>
+                                        <div
+                                            className="text-stone-300 leading-relaxed text-sm whitespace-pre-line"
+                                            dangerouslySetInnerHTML={{
+                                                __html: selectedProductDetails.description
+                                                    .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments (WordPress blocks)
+                                                    .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n') // Convert closing/opening p tags to double newlines
+                                                    .replace(/<br\s*\/?>/gi, '\n') // Convert br to newlines
+                                                    .replace(/<p[^>]*>/gi, '') // Remove opening p tags
+                                                    .replace(/<\/p>/gi, '\n\n') // Convert closing p to double newlines
+                                                    .replace(/<[^>]+>/g, '') // Remove remaining HTML tags
+                                                    .replace(/&nbsp;/g, ' ') // Convert nbsp to regular spaces
+                                                    .replace(/\n{3,}/g, '\n\n') // Normalize multiple newlines to double
+                                                    .trim()
+                                            }}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Add to Cart Button */}
+                                <Button
+                                    variant="primary"
+                                    className="w-full"
+                                    disabled={addingToCart}
+                                    onClick={handleAddToCart}
+                                >
+                                    {addingToCart ? (
+                                        <>
+                                            <Spinner size="sm" />
+                                            Dodawanie...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                                            </svg>
+                                            Dodaj do koszyka
+                                        </>
+                                    )}
+                                </Button>
                             </div>
                         </div>
                     </div>

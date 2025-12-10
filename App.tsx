@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { CartProvider } from './hooks/useCart';
 import LoginView from './components/LoginView';
 import DashboardView from './components/DashboardView';
 import Header from './components/Header';
 import ActivityView from './components/ActivityView';
 import RewardsView from './components/RewardsView';
 import SalesView from './components/SalesView';
+import CartView from './components/CartView';
 import ResetPasswordView from './components/ResetPasswordView';
 
-export type View = 'dashboard' | 'activity' | 'rewards' | 'sales';
+export type View = 'dashboard' | 'activity' | 'rewards' | 'sales' | 'cart';
 
 const AppContent: React.FC = () => {
     const { isAuthenticated, user } = useAuth();
@@ -25,9 +27,10 @@ const AppContent: React.FC = () => {
                 return <ActivityView />;
             case 'rewards':
                 return <RewardsView />;
-
             case 'sales':
                 return <SalesView />;
+            case 'cart':
+                return <CartView />;
             case 'dashboard':
             default:
                 return <DashboardView />;
@@ -56,11 +59,13 @@ const App: React.FC = () => {
     return (
         <BrowserRouter>
             <AuthProvider>
-                <Routes>
-                    <Route path="/reset-password" element={<ResetPasswordView />} />
-                    <Route path="/" element={<AppContent />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
+                <CartProvider>
+                    <Routes>
+                        <Route path="/reset-password" element={<ResetPasswordView />} />
+                        <Route path="/" element={<AppContent />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                </CartProvider>
             </AuthProvider>
         </BrowserRouter>
     );

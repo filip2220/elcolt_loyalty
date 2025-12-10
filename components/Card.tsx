@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 
-interface CardProps {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   className?: string;
   variant?: 'default' | 'elevated' | 'bordered';
@@ -10,7 +10,11 @@ interface CardProps {
 const Card: React.FC<CardProps> = React.memo(({ 
   children, 
   className = '',
-  variant = 'default'
+  variant = 'default',
+  onClick,
+  role,
+  tabIndex,
+  ...rest
 }) => {
   const baseClasses = `
     rounded-sm
@@ -39,7 +43,13 @@ const Card: React.FC<CardProps> = React.memo(({
   };
 
   return (
-    <div className={`${baseClasses} ${variantClasses[variant]} p-4 sm:p-6 ${className}`}>
+    <div
+      className={`${baseClasses} ${variantClasses[variant]} p-4 sm:p-6 ${className}`}
+      onClick={onClick}
+      role={onClick ? 'button' : role}
+      tabIndex={onClick ? 0 : tabIndex}
+      {...rest}
+    >
       {children}
     </div>
   );
