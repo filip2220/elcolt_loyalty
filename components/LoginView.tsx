@@ -9,39 +9,39 @@ const MountainBackground = () => (
   <div className="absolute inset-0 overflow-hidden">
     {/* Gradient base */}
     <div className="absolute inset-0 bg-gradient-to-b from-forest-900 via-slate-950 to-slate-950" />
-    
+
     {/* Stars/dots pattern */}
-    <div 
+    <div
       className="absolute inset-0 opacity-30"
       style={{
         backgroundImage: `radial-gradient(circle at 1px 1px, rgba(201, 162, 39, 0.3) 1px, transparent 0)`,
         backgroundSize: '50px 50px',
       }}
     />
-    
+
     {/* Mountain layers */}
-    <svg 
+    <svg
       className="absolute bottom-0 w-full h-2/3 opacity-40"
-      viewBox="0 0 1440 600" 
+      viewBox="0 0 1440 600"
       preserveAspectRatio="xMidYMax slice"
       fill="none"
     >
       {/* Back mountain layer */}
-      <path 
+      <path
         d="M0 600V400L120 320L240 380L360 280L480 340L600 260L720 320L840 240L960 300L1080 220L1200 280L1320 200L1440 260V600H0Z"
         fill="url(#mountain-gradient-1)"
       />
       {/* Middle mountain layer */}
-      <path 
+      <path
         d="M0 600V450L100 400L200 440L350 350L500 400L650 320L800 380L950 300L1100 360L1250 280L1350 340L1440 300V600H0Z"
         fill="url(#mountain-gradient-2)"
       />
       {/* Front mountain layer */}
-      <path 
+      <path
         d="M0 600V500L80 470L180 510L300 450L450 490L600 420L750 470L900 400L1050 450L1200 390L1350 440L1440 400V600H0Z"
         fill="url(#mountain-gradient-3)"
       />
-      
+
       {/* Pine trees silhouette */}
       <g className="opacity-60">
         <path d="M50 600L50 550L60 530L50 540L55 520L45 530L50 510L40 530L45 550L45 600Z" fill="#0D0F12" />
@@ -51,7 +51,7 @@ const MountainBackground = () => (
         <path d="M1350 600L1350 565L1358 550L1350 558L1354 542L1346 552L1350 532L1342 552L1346 565L1346 600Z" fill="#0D0F12" />
         <path d="M1400 600L1400 575L1408 562L1400 568L1404 555L1396 563L1400 548L1392 563L1396 575L1396 600Z" fill="#0D0F12" />
       </g>
-      
+
       <defs>
         <linearGradient id="mountain-gradient-1" x1="720" y1="200" x2="720" y2="600" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#1B3A2F" stopOpacity="0.5" />
@@ -67,7 +67,7 @@ const MountainBackground = () => (
         </linearGradient>
       </defs>
     </svg>
-    
+
     {/* Fog/mist effect */}
     <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent" />
   </div>
@@ -78,8 +78,8 @@ const Logo = () => (
   <div className="flex flex-col items-center mb-8">
     {/* Crosshairs icon */}
     <div className="relative w-16 h-16 mb-4">
-      <svg 
-        viewBox="0 0 40 40" 
+      <svg
+        viewBox="0 0 40 40"
         className="w-full h-full text-brass-500"
         fill="none"
         stroke="currentColor"
@@ -95,7 +95,7 @@ const Logo = () => (
         <circle cx="20" cy="20" r="1.5" fill="currentColor" />
       </svg>
     </div>
-    
+
     <h1 className="font-display text-4xl font-bold tracking-wide text-cream">
       EL COLT
     </h1>
@@ -109,11 +109,12 @@ const LoginView: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -125,9 +126,9 @@ const LoginView: React.FC = () => {
     setLoading(true);
     try {
       if (isSignUp) {
-        await signup({ email, password, firstName, lastName, phone });
+        await signup({ email: signupEmail, password, firstName, lastName, phone });
       } else {
-        await login(email, password);
+        await login(identifier, password);
       }
     } catch (err: any) {
       setError(err.message || 'Wystąpił nieoczekiwany błąd.');
@@ -140,7 +141,8 @@ const LoginView: React.FC = () => {
   const toggleFormMode = () => {
     setIsSignUp(!isSignUp);
     setError(null);
-    setEmail('');
+    setIdentifier('');
+    setSignupEmail('');
     setPassword('');
     setFirstName('');
     setLastName('');
@@ -165,18 +167,18 @@ const LoginView: React.FC = () => {
     <>
       <div className="min-h-screen relative flex flex-col justify-center items-center py-8 sm:py-12 px-3 sm:px-4 safe-area-top">
         <MountainBackground />
-        
+
         {/* Login card */}
         <div className="relative z-10 w-full max-w-md animate-slide-up">
           {/* Card with subtle border glow */}
           <div className="relative">
             {/* Glow effect */}
             <div className="absolute -inset-px bg-gradient-to-b from-brass-500/20 via-transparent to-transparent rounded-sm blur-sm" />
-            
+
             {/* Main card */}
             <div className="relative bg-slate-900/95 backdrop-blur-sm border border-slate-700/50 rounded-sm shadow-2xl shadow-black/50 p-5 sm:p-8">
               <Logo />
-              
+
               <p className="text-center text-stone-400 mb-8">
                 {isSignUp ? 'Dołącz do elitarnego grona łowców nagród' : 'Zaloguj się, aby uzyskać dostęp do nagród'}
               </p>
@@ -239,23 +241,41 @@ const LoginView: React.FC = () => {
                     </div>
                   </>
                 )}
-                
-                <div>
-                  <label className={labelClasses} htmlFor="email">Adres Email</label>
-                  <input
-                    className={inputClasses}
-                    id="email"
-                    type="email"
-                    placeholder="twoj@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    disabled={loading}
-                    autoComplete="email"
-                    inputMode="email"
-                  />
-                </div>
-                
+
+                {isSignUp ? (
+                  <div>
+                    <label className={labelClasses} htmlFor="signupEmail">Adres Email</label>
+                    <input
+                      className={inputClasses}
+                      id="signupEmail"
+                      type="email"
+                      placeholder="twoj@email.com"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      required
+                      disabled={loading}
+                      autoComplete="email"
+                      inputMode="email"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className={labelClasses} htmlFor="identifier">Email lub Numer Telefonu</label>
+                    <input
+                      className={inputClasses}
+                      id="identifier"
+                      type="text"
+                      placeholder="twoj@email.com lub 123456789"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      required
+                      disabled={loading}
+                      autoComplete="username"
+                    />
+                    <p className="text-xs text-stone-500 mt-1">Telefon wpisz bez kodu kraju (np. bez +48)</p>
+                  </div>
+                )}
+
                 <div>
                   <label className={labelClasses} htmlFor="password">Hasło</label>
                   <input
@@ -298,8 +318,8 @@ const LoginView: React.FC = () => {
                 <div className="flex-1 border-t border-slate-700/50" />
               </div>
 
-              <button 
-                onClick={toggleFormMode} 
+              <button
+                onClick={toggleFormMode}
                 className="w-full text-center text-sm text-stone-400 hover:text-cream transition-colors focus:outline-none focus:text-cream"
               >
                 {isSignUp ? (
@@ -310,7 +330,7 @@ const LoginView: React.FC = () => {
               </button>
             </div>
           </div>
-          
+
           {/* Tagline */}
           <p className="text-center text-stone-600 text-xs mt-8 tracking-wider uppercase">
             Precyzja • Tradycja • Lojalność

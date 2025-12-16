@@ -1,51 +1,83 @@
+/**
+ * Test script to debug password hashing for a specific user
+ */
 require('dotenv').config();
-const mysql = require('mysql2/promise');
+const db = require('./db');
+const wphash = require('wordpress-hash-node');
 const bcrypt = require('bcrypt');
 
-async function testPassword() {
-    const conn = await mysql.createConnection({
-        host: process.env.DB_HOST,
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_NAME
-    });
-
-    // Get user from database
-    const [users] = await conn.query(
-        'SELECT user_email, user_pass FROM el1users WHERE user_email = ?',
-        ['fszymik@gmail.com']
-    );
-
-    if (users.length === 0) {
-        console.log('User not found!');
-        await conn.end();
-        return;
-    }
-
-    const hash = users[0].user_pass;
-    console.log('User:', users[0].user_email);
-    console.log('Original hash:', hash);
-    console.log('Hash starts with $wp$:', hash.startsWith('$wp$'));
-
-    // Test the conversion
-    const bcryptHash = hash.replace('$wp', '');
-    console.log('Converted bcrypt hash:', bcryptHash);
-
-    // Ask for password via command line argument
-    const testPassword = process.argv[2] || 'test';
-    console.log('\nTesting with password:', testPassword);
-
+async function testPasswordForUser(email) {
     try {
-        const result = await bcrypt.compare(testPassword, bcryptHash);
-        console.log('Password match result:', result);
-    } catch (err) {
-        console.log('Bcrypt error:', err.message);
-    }
+        console.log('='.repeat(60));
+        console.log('Testing password hash for user:', email);
+        console.log('='.repeat(60));
 
-    await conn.end();
+        // Get user from database
+        const [users] = await db.query('SELECT ID, user_pass, user_email FROM el1users WHERE user_email = ?', [email]);
+
+        if (users.length === 0) {
+            console.log('❌ User not found in database!');
+            process.exit(1);
+        }
+
+        const user = users[0];
+        const hash = user.user_pass;
+
+        console.log('\n📧 User email:', user.user_email);
+        console.log('🆔 User ID:', user.ID);
+        console.log('🔐 Password hash:', hash);
+        console.log('📏 Hash length:', hash.length);
+        console.log('🏷️  Hash prefix:', hash.substring(0, 10));
+
+        // Determine hash type
+        console.log('\n--- Hash Type Analysis ---');
+        if (hash.startsWith('$wp$')) {
+            console.log('✅ This is a NEW WordPress bcrypt format ($wp$...)');
+            console.log('   This was created by our app signup or password reset');
+        } else if (hash.startsWith('$P$')) {
+            console.log('✅ This is an OLD WordPress phpass format ($P$...)');
+            console.log('   This was created by WordPress itself (WooCommerce signup, etc)');
+        } else if (hash.startsWith('$2')) {
+            console.log('✅ This is a standard bcrypt format ($2...)');
+        } else {
+            console.log('⚠️  Unknown hash format!');
+        }
+
+        // Test password verification
+        console.log('\n--- Password Verification Test ---');
+        console.log('Enter a test password to check (default: "test123"):');
+
+        // Test with common passwords
+        const testPasswords = ['test123', 'password', 'Password123', 'admin'];
+
+        for (const testPass of testPasswords) {
+            let result = false;
+
+            if (hash.startsWith('$wp$')) {
+                const bcryptHash = hash.replace('$wp', '');
+                result = await bcrypt.compare(testPass, bcryptHash);
+            } else if (hash.startsWith('$P$')) {
+                result = wphash.CheckPassword(testPass, hash);
+            } else if (hash.startsWith('$2')) {
+                result = await bcrypt.compare(testPass, hash);
+            } else {
+                result = wphash.CheckPassword(testPass, hash);
+            }
+
+            console.log(`Password "${testPass}": ${result ? '✅ MATCH!' : '❌ no match'}`);
+        }
+
+        console.log('\n' + '='.repeat(60));
+        console.log('Test complete');
+        console.log('='.repeat(60));
+
+    } catch (error) {
+        console.error('Error:', error.message);
+    } finally {
+        process.exit(0);
+    }
 }
 
-testPassword().catch(console.error);
-
-
-
+// Run test for the specified user
+const email = process.argv[2] || 'wcekot85@gmail.com';
+testPasswordForUser(email);

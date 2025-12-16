@@ -19,10 +19,11 @@ app.use(morgan('combined'));
 
 // SECURITY FIX: Restrict CORS to specific origin instead of allowing all
 // This prevents unauthorized websites from accessing the API
-// For development, allow common localhost ports; for production, use FRONTEND_URL env var
+// Always allow common localhost ports for development, plus any configured FRONTEND_URL
+const devOrigins = ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'];
 const allowedOrigins = process.env.FRONTEND_URL
-  ? [process.env.FRONTEND_URL]
-  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001'];
+  ? [...devOrigins, process.env.FRONTEND_URL]
+  : devOrigins;
 
 const corsOptions = {
   origin: function (origin, callback) {

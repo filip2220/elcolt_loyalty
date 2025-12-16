@@ -7,7 +7,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  login: (email: string, pass: string) => Promise<void>;
+  login: (identifier: string, pass: string) => Promise<void>;
   signup: (data: api.SignupData) => Promise<void>;
   logout: () => void;
   points: number;
@@ -59,8 +59,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     initAuth();
   }, [token, fetchUserData]);
 
-  const login = async (email: string, pass: string) => {
-    const { token: newToken } = await api.login(email, pass);
+  const login = async (identifier: string, pass: string) => {
+    const { token: newToken } = await api.login(identifier, pass);
     localStorage.setItem('jwt_token', newToken);
     setToken(newToken);
     await fetchUserData(newToken);
@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLevel(null);
     localStorage.removeItem('jwt_token');
   };
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-800">

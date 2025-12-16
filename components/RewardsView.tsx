@@ -1,11 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { AppOffer } from '../types';
+import { AppOffer, Product, ApplicableProduct } from '../types';
 import * as api from '../services/api';
 import Spinner from './Spinner';
 import Card from './Card';
 import Button from './Button';
 import { formatPolishInteger } from '../utils/format';
+
+// Product placeholder icon
+const ProductPlaceholderIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+    </svg>
+);
+
+// Format price helper
+const formatPrice = (price: string | null): string => {
+    if (!price) return '';
+    const num = parseFloat(price);
+    return new Intl.NumberFormat('pl-PL', {
+        style: 'currency',
+        currency: 'PLN'
+    }).format(num);
+};
 
 // Gift/Offer icon
 const OfferIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -20,9 +37,10 @@ interface AppOfferCardProps {
     onRedeem: (offerId: number) => void;
     isRedeeming: boolean;
     userPoints: number;
+    onProductClick: (product: ApplicableProduct) => void;
 }
 
-const AppOfferCard: React.FC<AppOfferCardProps> = ({ offer, onRedeem, isRedeeming, userPoints }) => {
+const AppOfferCard: React.FC<AppOfferCardProps> = ({ offer, onRedeem, isRedeeming, userPoints, onProductClick }) => {
     const getDiscountLabel = () => {
         if (offer.discount_type === 'percent') {
             return `${offer.discount_value}% zniżki`;
@@ -79,28 +97,32 @@ const AppOfferCard: React.FC<AppOfferCardProps> = ({ offer, onRedeem, isRedeemin
                         <p className="text-stone-500 text-xs uppercase tracking-wider mb-2">
                             {offer.applicable_products[0]?.isCategory ? 'Dotyczy kategorii:' : 'Dotyczy produktów:'}
                         </p>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             {offer.applicable_products.slice(0, 3).map((product, idx) => (
-                                <div key={idx} className="flex items-center gap-2">
+                                <div
+                                    key={idx}
+                                    className={`flex items-center gap-3 ${!product.isCategory ? 'cursor-pointer hover:bg-slate-800/50 rounded-sm p-1 -m-1 transition-colors' : ''}`}
+                                    onClick={() => !product.isCategory && onProductClick(product)}
+                                >
                                     {/* Product thumbnail or fallback bullet */}
                                     {product.thumbnail_url && !product.isCategory ? (
                                         <img
                                             src={api.getProxiedImageUrl(product.thumbnail_url)}
                                             alt={product.name}
-                                            className="w-10 h-10 rounded-sm object-cover flex-shrink-0 border border-slate-700/50 bg-slate-800"
+                                            className="w-16 h-16 rounded-sm object-cover flex-shrink-0 border border-slate-700/50 bg-slate-800 hover:border-forest-500/50 transition-colors"
                                             onError={(e) => {
                                                 // Hide image on error, show bullet instead
                                                 (e.target as HTMLImageElement).style.display = 'none';
                                             }}
                                         />
                                     ) : (
-                                        <span className="text-forest-500 flex-shrink-0 w-10 h-10 flex items-center justify-center">•</span>
+                                        <span className="text-forest-500 flex-shrink-0 w-16 h-16 flex items-center justify-center text-2xl">•</span>
                                     )}
-                                    <span className="text-stone-300 text-sm leading-snug line-clamp-2">{product.name}</span>
+                                    <span className={`text-stone-300 text-sm leading-snug line-clamp-2 ${!product.isCategory ? 'hover:text-forest-400 transition-colors' : ''}`}>{product.name}</span>
                                 </div>
                             ))}
                             {offer.applicable_products.length > 3 && (
-                                <p className="text-stone-500 text-xs pl-12">
+                                <p className="text-stone-500 text-xs pl-20">
                                     +{offer.applicable_products.length - 3} więcej...
                                 </p>
                             )}
@@ -171,12 +193,18 @@ const AppOfferCard: React.FC<AppOfferCardProps> = ({ offer, onRedeem, isRedeemin
 };
 
 const RewardsView: React.FC = () => {
-    const { token, points, updatePoints } = useAuth();
+    const { token, points, updatePoints, level } = useAuth();
     const [offers, setOffers] = useState<AppOffer[]>([]);
     const [loading, setLoading] = useState(true);
     const [redeemingId, setRedeemingId] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<{ message: string, coupon: string } | null>(null);
+
+    // Product detail modal state
+    const [selectedProduct, setSelectedProduct] = useState<ApplicableProduct | null>(null);
+    const [productDetails, setProductDetails] = useState<Product | null>(null);
+    const [loadingProductDetails, setLoadingProductDetails] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
     useEffect(() => {
         const fetchOffers = async () => {
@@ -192,6 +220,33 @@ const RewardsView: React.FC = () => {
         };
         fetchOffers();
     }, []);
+
+    const handleProductClick = async (product: ApplicableProduct) => {
+        if (product.isCategory) return;
+
+        setSelectedProduct(product);
+        setProductDetails(null);
+        setCurrentImageIndex(0);
+
+        try {
+            setLoadingProductDetails(true);
+            const productId = parseInt(product.id, 10);
+            if (!isNaN(productId)) {
+                const details = await api.getProduct(productId);
+                setProductDetails(details);
+            }
+        } catch (err) {
+            console.error("Failed to fetch product details", err);
+        } finally {
+            setLoadingProductDetails(false);
+        }
+    };
+
+    const handleCloseModal = () => {
+        setSelectedProduct(null);
+        setProductDetails(null);
+        setCurrentImageIndex(0);
+    };
 
     const handleRedeem = async (offerId: number) => {
         if (!token) return;
@@ -224,7 +279,7 @@ const RewardsView: React.FC = () => {
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4">
                 <div>
                     <h1 className="font-display text-2xl sm:text-3xl font-bold text-cream tracking-wide">
-                        Oferty dla Użytkowników
+                        Nagrody tylko dla poziomu {level?.name || 'Twojego'}
                     </h1>
                     <p className="text-stone-500 text-sm sm:text-base mt-1">Ekskluzywne oferty dostępne wyłącznie w aplikacji</p>
                 </div>
@@ -299,6 +354,7 @@ const RewardsView: React.FC = () => {
                             onRedeem={handleRedeem}
                             isRedeeming={redeemingId === offer.id}
                             userPoints={points}
+                            onProductClick={handleProductClick}
                         />
                     </div>
                 ))}
@@ -312,8 +368,215 @@ const RewardsView: React.FC = () => {
                     <p className="text-stone-500">Brak dostępnych ofert</p>
                 </div>
             )}
+
+            {/* Product Detail Modal */}
+            {selectedProduct && (
+                <div
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-950/90 backdrop-blur-sm animate-fade-in"
+                    onClick={handleCloseModal}
+                >
+                    <div
+                        className="relative w-full sm:max-w-2xl h-[85vh] sm:h-auto sm:max-h-[85vh] bg-slate-900 border-t sm:border border-slate-700/50 rounded-t-xl sm:rounded-sm overflow-hidden shadow-2xl"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Close button */}
+                        <button
+                            onClick={handleCloseModal}
+                            className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10 w-10 h-10 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-stone-400 hover:text-cream rounded-sm transition-colors"
+                            aria-label="Zamknij"
+                        >
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+
+                        <div className="flex flex-col max-h-[85vh] overflow-y-auto">
+                            {/* Image Gallery */}
+                            <div className="w-full bg-slate-800">
+                                {(() => {
+                                    // Build array of all images
+                                    const allImages: { url: string; title?: string }[] = [];
+
+                                    if (productDetails?.featured_image) {
+                                        allImages.push(productDetails.featured_image);
+                                    }
+                                    if (productDetails?.gallery_images) {
+                                        allImages.push(...productDetails.gallery_images);
+                                    }
+
+                                    // Fallback to product thumbnail if no details yet
+                                    if (allImages.length === 0 && selectedProduct.thumbnail_url) {
+                                        allImages.push({ url: api.getProxiedImageUrl(selectedProduct.thumbnail_url) });
+                                    }
+
+                                    const hasMultipleImages = allImages.length > 1;
+                                    const currentImage = allImages[currentImageIndex] || null;
+
+                                    return (
+                                        <>
+                                            {/* Main Image */}
+                                            <div className="aspect-square relative">
+                                                {currentImage ? (
+                                                    <img
+                                                        src={currentImage.url}
+                                                        alt={currentImage.title || selectedProduct.name}
+                                                        className="w-full h-full object-contain"
+                                                        referrerPolicy="no-referrer"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <ProductPlaceholderIcon className="w-24 h-24 text-stone-600" />
+                                                    </div>
+                                                )}
+
+                                                {loadingProductDetails && (
+                                                    <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
+                                                        <Spinner size="md" />
+                                                    </div>
+                                                )}
+
+                                                {/* Navigation Arrows */}
+                                                {hasMultipleImages && (
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1);
+                                                            }}
+                                                            className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-slate-900/70 hover:bg-slate-800 text-cream rounded-full transition-colors"
+                                                            aria-label="Poprzednie zdjęcie"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1);
+                                                            }}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-slate-900/70 hover:bg-slate-800 text-cream rounded-full transition-colors"
+                                                            aria-label="Następne zdjęcie"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                                            </svg>
+                                                        </button>
+
+                                                        {/* Image Counter */}
+                                                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-slate-900/70 px-3 py-1 rounded-full text-xs text-cream font-mono">
+                                                            {currentImageIndex + 1} / {allImages.length}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Thumbnail Strip */}
+                                            {hasMultipleImages && (
+                                                <div className="flex gap-2 p-3 overflow-x-auto bg-slate-850">
+                                                    {allImages.map((img, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setCurrentImageIndex(idx);
+                                                            }}
+                                                            className={`flex-shrink-0 w-16 h-16 rounded-sm overflow-hidden border-2 transition-all ${idx === currentImageIndex
+                                                                ? 'border-forest-500 opacity-100'
+                                                                : 'border-transparent opacity-60 hover:opacity-100'
+                                                                }`}
+                                                        >
+                                                            <img
+                                                                src={img.url}
+                                                                alt={`Zdjęcie ${idx + 1}`}
+                                                                className="w-full h-full object-cover"
+                                                                referrerPolicy="no-referrer"
+                                                            />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                            </div>
+
+                            {/* Details */}
+                            <div className="p-4 sm:p-6">
+                                <h2 className="font-display text-xl sm:text-2xl font-bold text-cream tracking-wide mb-3">
+                                    {selectedProduct.name}
+                                </h2>
+
+                                {/* Price */}
+                                {productDetails && (
+                                    <div className="flex flex-wrap items-baseline gap-2 sm:gap-3 mb-4">
+                                        {productDetails.sale_price && productDetails.regular_price ? (
+                                            <>
+                                                <span className="font-mono text-2xl font-bold text-forest-500">
+                                                    {formatPrice(productDetails.sale_price)}
+                                                </span>
+                                                <span className="font-mono text-lg text-stone-500 line-through">
+                                                    {formatPrice(productDetails.regular_price)}
+                                                </span>
+                                            </>
+                                        ) : productDetails.price ? (
+                                            <span className="font-mono text-2xl font-bold text-brass-500">
+                                                {formatPrice(productDetails.price)}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                )}
+
+                                {/* Short Description */}
+                                {productDetails?.short_description && (
+                                    <p className="text-stone-300 leading-relaxed text-sm mb-4">
+                                        {new DOMParser().parseFromString(productDetails.short_description, 'text/html').body.textContent}
+                                    </p>
+                                )}
+
+                                {/* Full Description */}
+                                {productDetails?.description && (
+                                    <div className="mb-6">
+                                        <h3 className="text-stone-400 text-xs uppercase tracking-wider font-semibold mb-3">Opis produktu</h3>
+                                        <div
+                                            className="text-stone-300 leading-relaxed text-sm whitespace-pre-line"
+                                            dangerouslySetInnerHTML={{
+                                                __html: productDetails.description
+                                                    .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments (WordPress blocks)
+                                                    .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n') // Convert closing/opening p tags to double newlines
+                                                    .replace(/<br\s*\/?>/gi, '\n') // Convert br to newlines
+                                                    .replace(/<p[^>]*>/gi, '') // Remove opening p tags
+                                                    .replace(/<\/p>/gi, '\n\n') // Convert closing p to double newlines
+                                                    .replace(/<[^>]+>/g, '') // Remove remaining HTML tags
+                                                    .replace(/&nbsp;/g, ' ') // Convert nbsp to regular spaces
+                                                    .replace(/\n{3,}/g, '\n\n') // Normalize multiple newlines to double
+                                                    .trim()
+                                            }}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* View on Website Button */}
+                                <Button
+                                    variant="secondary"
+                                    className="w-full"
+                                    onClick={() => {
+                                        window.open(`https://elcolt.pl/?p=${selectedProduct.id}`, '_blank');
+                                    }}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                    Zobacz w sklepie
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 export default RewardsView;
+

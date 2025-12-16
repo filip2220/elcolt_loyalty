@@ -7,29 +7,154 @@ const nodemailer = require('nodemailer');
 const db = require('./db');
 const verifyToken = require('./authMiddleware');
 
+const https = require('https');
+const querystring = require('querystring');
+
 /**
- * Check password against hash - supports both old WordPress ($P$) and new bcrypt ($wp$2y$) formats
+ * Helper to verify password by attempting to log in to the actual WordPress site
+ * This is used as a fallback when local hash verification fails (e.g. unknown WP hash algorithms)
  */
-async function checkPassword(password, hash) {
-    // New WordPress format: $wp$2y$10$... (bcrypt with wp prefix)
-    if (hash.startsWith('$wp$')) {
-        // Remove the $wp prefix to get standard bcrypt hash
-        const bcryptHash = hash.replace('$wp', '');
-        return await bcrypt.compare(password, bcryptHash);
-    }
-    // Old WordPress format: $P$B... (phpass)
-    else if (hash.startsWith('$P$')) {
-        return wphash.CheckPassword(password, hash);
-    }
-    // Standard bcrypt format: $2y$10$... or $2a$10$...
-    else if (hash.startsWith('$2')) {
-        return await bcrypt.compare(password, hash);
-    }
-    // Fallback to wordpress-hash-node
-    return wphash.CheckPassword(password, hash);
+async function verifyViaHttp(username, password) {
+    if (!username) return false;
+
+    return new Promise((resolve) => {
+        const postData = querystring.stringify({
+            'log': username,
+            'pwd': password,
+            'wp-submit': 'Log In',
+            'testcookie': '1'
+        });
+
+        const options = {
+            hostname: 'etaktyczne.pl',
+            port: 443,
+            path: '/wp-login.php',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Length': postData.length,
+                'User-Agent': 'ElColtApp/1.0',
+                'Cookie': 'wordpress_test_cookie=WP%20Cookie%20check'
+            },
+            timeout: 8000 // Increased timeout to 8s
+        };
+
+        const req = https.request(options, (res) => {
+            let hasCookie = false;
+
+            // Log all headers to see what we got
+            // console.log('[DEBUG] Response Headers:', JSON.stringify(res.headers));
+
+            if (res.headers['set-cookie']) {
+                res.headers['set-cookie'].forEach(c => {
+                    if (c.includes('wordpress_logged_in_')) {
+                        hasCookie = true;
+                    }
+                });
+            }
+
+            // Redirects (302) usually mean success in WP login if no error param
+            // Also checking if redirected to admin/profile as extra confirmation
+            if (res.statusCode === 302 && res.headers.location && !res.headers.location.includes('login_error')) {
+                if (res.headers.location.includes('wp-admin') || res.headers.location.includes('profile.php')) {
+                    hasCookie = true;
+                }
+            }
+
+            resolve(hasCookie);
+        });
+
+        req.on('error', (e) => {
+            console.error('HTTP verification error:', e.message);
+            resolve(false);
+        });
+
+        req.on('timeout', () => {
+            req.destroy();
+            resolve(false);
+        });
+
+        req.write(postData);
+        req.end();
+    });
 }
 
+/**
+ * Check password against hash - supports WordPress formats:
+ * - Old WordPress phpass: $P$...
+ * - New WordPress 6.8+ bcrypt with HMAC-SHA384 pre-hash: $wp$2y$...
+ * - Plugins that use $wp prefix: $wp$2y$... (without HMAC pre-hash)
+ * - Standard bcrypt: $2y$... or $2a$... or $2b$...
+ * - Fallback: HTTP Login Check
+ *
+ * @param {string} password - The password to check
+ * @param {string} hash - The hash from DB
+ * @param {string} [email] - User email (required for HTTP fallback)
+ * @param {number} [userId] - User ID (required for hash update)
+ */
+async function checkPassword(password, hash, email, userId) {
+    let isValid = false;
+
+    if (!hash) return false;
+
+    // 1. Standard WordPress format (PHPass): $P$ or $H$
+    if (hash.startsWith('$P$') || hash.startsWith('$H$')) {
+        isValid = wphash.CheckPassword(password, hash);
+    }
+    // 2. Standard Bcrypt (including PHP $2y variant)
+    else if (hash.startsWith('$2')) {
+        // Convert PHP-specific $2y to $2b for node.js bcrypt compatibility
+        const compatHash = hash.replace(/^\$2y\$/, '$2b$');
+        isValid = await bcrypt.compare(password, compatHash);
+    }
+    // 3. App-Specific Legacy format ($wp prefix + bcrypt)
+    else if (hash.startsWith('$wp')) {
+        const bcryptHash = hash.substring(3);
+        // Clean up any $2y in legacy hash too
+        const compatHash = bcryptHash.replace(/^\$2y\$/, '$2b$');
+
+        // Method 1: HMAC-SHA384 pre-hash
+        const hmacHash = crypto.createHmac('sha384', 'wp-sha384').update(password).digest('base64');
+        if (await bcrypt.compare(hmacHash, compatHash)) isValid = true;
+
+        // Method 2: Direct bcrypt
+        if (!isValid && await bcrypt.compare(password, compatHash)) isValid = true;
+    }
+    // 4. Fallback: try wphash on everything else
+    else {
+        isValid = wphash.CheckPassword(password, hash);
+    }
+
+    // --- FALLBACK TO HTTP CHECK ---
+    // If local verification failed but we suspect it might be valid (e.g. unknown WP hash algorithm)
+    // We verify via HTTP login to the site.
+    if (!isValid && email) {
+        console.log(`[AUTH] Local verify failed for ${email}, trying HTTP fallback...`);
+        const httpSuccess = await verifyViaHttp(email, password);
+
+        if (httpSuccess) {
+            console.log(`[AUTH] HTTP fallback SUCCESS via ${email}. Updating local hash...`);
+            isValid = true;
+
+            // Update DB with standard bcrypt hash so next login is fast
+            if (userId) {
+                try {
+                    const newHash = await bcrypt.hash(password, 10);
+                    await db.query('UPDATE el1users SET user_pass = ? WHERE ID = ?', [newHash, userId]);
+                    console.log(`[AUTH] Hash updated to standard bcrypt for user ${userId}`);
+                } catch (e) {
+                    console.error('[AUTH] Failed to update hash:', e);
+                }
+            }
+        }
+    }
+
+    return isValid;
+}
+
+
 const router = express.Router();
+
 
 // =====================================================
 // IMAGE URL HELPER
@@ -110,9 +235,8 @@ router.post('/signup', async (req, res) => {
             return res.status(409).json({ message: 'Konto z tym adresem email już istnieje.' });
         }
 
-        // Use bcrypt for new passwords (WordPress 6.x+ compatible format)
-        const bcryptHash = await bcrypt.hash(password, 10);
-        const hashedPassword = '$wp' + bcryptHash; // Add WordPress prefix
+        // Use standard WordPress hashing (PHPass) for compatibility with website
+        const hashedPassword = wphash.HashPassword(password);
         const now = new Date();
         const userNicename = (firstName + ' ' + lastName).toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
 
@@ -151,24 +275,83 @@ router.post('/signup', async (req, res) => {
 /**
  * POST /api/login
  * Authenticates a user and returns a JWT.
- * Body: { "email": "user@example.com", "password": "user_password" }
+ * Supports login via email OR phone number.
+ * Phone numbers should be WITHOUT country code (e.g., '123456789' not '+48123456789')
+ * Body: { "identifier": "user@example.com" or "123456789", "password": "user_password" }
+ * Also accepts legacy format: { "email": "user@example.com", "password": "user_password" }
  */
 router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-        return res.status(400).json({ message: 'Email i hasło są wymagane.' });
+    // Support both 'identifier' (new) and 'email' (legacy) field names
+    const identifier = req.body.identifier || req.body.email;
+    const { password } = req.body;
+
+    if (!identifier || !password) {
+        return res.status(400).json({ message: 'Email lub numer telefonu i hasło są wymagane.' });
     }
 
     try {
-        const [users] = await db.query('SELECT ID, user_pass FROM el1users WHERE user_email = ?', [email]);
+        let users = [];
+        const trimmedIdentifier = identifier.trim();
+
+        // Check if the identifier looks like an email (contains @)
+        const isEmail = trimmedIdentifier.includes('@');
+
+        if (isEmail) {
+            // Login by email
+            [users] = await db.query('SELECT ID, user_pass FROM el1users WHERE user_email = ?', [trimmedIdentifier]);
+        } else {
+            // Login by phone number - search in usermeta table
+            // Remove any spaces, dashes, or other formatting from the phone number
+            const cleanedPhone = trimmedIdentifier.replace(/[\s\-\(\)]/g, '');
+
+            // Search for the phone number in billing_phone meta field
+            // We need to handle potential formatting differences (+48, spaces, etc.)
+            // Since user enters WITHOUT country code, we search for exact match or with common prefixes
+            const phoneVariants = [
+                cleanedPhone,                    // exact: 123456789
+                `+48${cleanedPhone}`,            // with Polish country code: +48123456789
+                `+48 ${cleanedPhone}`,           // with space after code
+                `48${cleanedPhone}`,             // without + prefix
+            ];
+
+            // Build query to search for any of these phone variants
+            const placeholders = phoneVariants.map(() => '?').join(', ');
+            const query = `
+                SELECT u.ID, u.user_pass 
+                FROM el1users u
+                INNER JOIN el1usermeta m ON u.ID = m.user_id
+                WHERE m.meta_key = 'billing_phone' 
+                AND (m.meta_value IN (${placeholders}) 
+                     OR REPLACE(REPLACE(REPLACE(REPLACE(m.meta_value, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?)
+                LIMIT 1
+            `;
+
+            // Add a LIKE pattern that matches the phone at the end (after any country code)
+            const likePattern = `%${cleanedPhone}`;
+            [users] = await db.query(query, [...phoneVariants, likePattern]);
+        }
+
         if (users.length === 0) {
+            console.log('[DEBUG] No user found for identifier:', trimmedIdentifier);
             return res.status(401).json({ message: 'Nieprawidłowe dane logowania.' });
         }
 
         const user = users[0];
-        const isPasswordCorrect = await checkPassword(password, user.user_pass);
+        console.log('[DEBUG] User found - ID:', user.ID);
+        // console.log('[DEBUG] Password hash from DB:', user.user_pass ? user.user_pass.substring(0, 20) + '...' : 'null');
+
+        let passwordToCheck = password;
+        if (typeof password === 'string') {
+            passwordToCheck = password.trim();
+        }
+
+        console.log(`[DEBUG] Verifying password. Received length: ${password.length}, Trimmed length: ${passwordToCheck.length}`);
+
+        // Pass user.user_email and user.ID to enable HTTP fallback checks and hash updates
+        const isPasswordCorrect = await checkPassword(passwordToCheck, user.user_pass, user.user_email, user.ID);
 
         if (!isPasswordCorrect) {
+            console.log('[DEBUG] Password verification FAILED');
             return res.status(401).json({ message: 'Nieprawidłowe dane logowania.' });
         }
 
@@ -396,6 +579,34 @@ router.get('/user/savings', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Get total savings error:', error);
         res.status(500).json({ message: 'Błąd serwera podczas pobierania oszczędności.' });
+    }
+});
+
+/**
+ * GET /api/user/qrcode-data
+ * Returns the user's phone number for QR code generation.
+ * Protected: Requires authentication token.
+ */
+router.get('/user/qrcode-data', verifyToken, async (req, res) => {
+    try {
+        const [userData] = await db.query(`
+            SELECT u.display_name, m.meta_value as phone
+            FROM el1users u
+            LEFT JOIN el1usermeta m ON u.ID = m.user_id AND m.meta_key = 'billing_phone'
+            WHERE u.ID = ?
+        `, [req.userId]);
+
+        if (userData.length === 0) {
+            return res.status(404).json({ message: 'Nie znaleziono użytkownika.' });
+        }
+
+        res.json({
+            name: userData[0].display_name,
+            phone: userData[0].phone || null
+        });
+    } catch (error) {
+        console.error('Get QR code data error:', error);
+        res.status(500).json({ message: 'Błąd serwera.' });
     }
 });
 
@@ -658,9 +869,8 @@ router.post('/reset-password', async (req, res) => {
         }
 
         // Hash new password
-        // Use bcrypt for new passwords (WordPress 6.x+ compatible format)
-        const bcryptHash = await bcrypt.hash(newPassword, 10);
-        const hashedPassword = '$wp' + bcryptHash; // Add WordPress prefix
+        // Hash new password using standard WordPress format
+        const hashedPassword = wphash.HashPassword(newPassword);
 
         // Update user password
         await connection.execute(

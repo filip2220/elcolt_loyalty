@@ -9,9 +9,10 @@ import ActivityView from './components/ActivityView';
 import RewardsView from './components/RewardsView';
 import SalesView from './components/SalesView';
 import CartView from './components/CartView';
+import QRCodeView from './components/QRCodeView';
 import ResetPasswordView from './components/ResetPasswordView';
 
-export type View = 'dashboard' | 'activity' | 'rewards' | 'sales' | 'cart';
+export type View = 'dashboard' | 'activity' | 'rewards' | 'sales' | 'cart' | 'qrcode';
 
 const AppContent: React.FC = () => {
     const { isAuthenticated, user } = useAuth();
@@ -31,6 +32,8 @@ const AppContent: React.FC = () => {
                 return <SalesView />;
             case 'cart':
                 return <CartView />;
+            case 'qrcode':
+                return <QRCodeView />;
             case 'dashboard':
             default:
                 return <DashboardView />;

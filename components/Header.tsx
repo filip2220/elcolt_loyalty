@@ -167,6 +167,19 @@ const MobileSalesIcon = () => (
   </svg>
 );
 
+// QR Code Icons
+const QRCodeIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.5h4.5v4.5h-4.5v-4.5zM15.75 4.5h4.5v4.5h-4.5v-4.5zM3.75 15.75h4.5v4.5h-4.5v-4.5zM15.75 15.75h4.5v4.5h-4.5v-4.5zM10.5 4.5h3v3h-3v-3zM4.5 10.5h1.5v1.5h-1.5v-1.5zM10.5 10.5h3v3h-3v-3zM16.5 10.5h1.5v1.5h-1.5v-1.5zM10.5 16.5h3v3h-3v-3z" />
+  </svg>
+);
+
+const MobileQRCodeIcon = () => (
+  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.5h4.5v4.5h-4.5v-4.5zM15.75 4.5h4.5v4.5h-4.5v-4.5zM3.75 15.75h4.5v4.5h-4.5v-4.5zM15.75 15.75h4.5v4.5h-4.5v-4.5zM10.5 4.5h3v3h-3v-3zM4.5 10.5h1.5v1.5h-1.5v-1.5zM10.5 10.5h3v3h-3v-3zM16.5 10.5h1.5v1.5h-1.5v-1.5zM10.5 16.5h3v3h-3v-3z" />
+  </svg>
+);
+
 const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView }) => {
   const { user, logout } = useAuth();
   const { cart } = useCart();
@@ -176,6 +189,7 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
   const handleRewardsClick = useCallback(() => setActiveView('rewards'), [setActiveView]);
   const handleSalesClick = useCallback(() => setActiveView('sales'), [setActiveView]);
   const handleCartClick = useCallback(() => setActiveView('cart'), [setActiveView]);
+  const handleQRCodeClick = useCallback(() => setActiveView('qrcode'), [setActiveView]);
 
   return (
     <>
@@ -234,6 +248,9 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
               <NavLink isActive={activeView === 'sales'} onClick={handleSalesClick} icon={<SalesIcon />}>
                 Promocje
               </NavLink>
+              <NavLink isActive={activeView === 'qrcode'} onClick={handleQRCodeClick} icon={<QRCodeIcon />}>
+                Karta
+              </NavLink>
             </div>
           </div>
         </nav>
@@ -253,6 +270,12 @@ const Header: React.FC<HeaderProps> = React.memo(({ activeView, setActiveView })
             onClick={handleActivityClick}
             icon={<MobileActivityIcon />}
             label="Historia"
+          />
+          <MobileNavLink
+            isActive={activeView === 'qrcode'}
+            onClick={handleQRCodeClick}
+            icon={<MobileQRCodeIcon />}
+            label="Karta"
           />
           <MobileNavLink
             isActive={activeView === 'rewards'}

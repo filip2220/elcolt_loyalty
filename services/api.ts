@@ -58,13 +58,18 @@ export const signup = async (data: SignupData): Promise<{ token: string }> => {
 };
 
 
-export const login = async (email: string, password: string): Promise<{ token: string }> => {
+/**
+ * Login with email or phone number
+ * @param identifier - Email address or phone number (without country code)
+ * @param password - User's password
+ */
+export const login = async (identifier: string, password: string): Promise<{ token: string }> => {
   const response = await fetch(`${API_BASE_URL}/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ identifier, password }),
   });
   return handleResponse(response);
 };
@@ -147,6 +152,28 @@ export const resetPassword = async (token: string, newPassword: string): Promise
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ token, newPassword }),
+  });
+  return handleResponse(response);
+};
+
+// =====================================================
+// QR CODE API FUNCTIONS
+// =====================================================
+
+export interface QRCodeData {
+  name: string;
+  phone: string | null;
+}
+
+/**
+ * Get the user's QR code data (phone number and name)
+ * @param token - JWT authentication token
+ */
+export const getQRCodeData = async (token: string): Promise<QRCodeData> => {
+  const response = await fetch(`${API_BASE_URL}/user/qrcode-data`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
   });
   return handleResponse(response);
 };
