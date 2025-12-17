@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e:*)",
+      "Bash(if [ -f .env ])",
+      "Bash(then echo \".env file exists\")",
+      "Bash(else echo \".env file NOT found\")",
+      "Bash(fi)",
+      "Bash(npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c \"taskkill /PID 14644 /F\")",
+      "Bash(node diagnose-orders.js:*)",
+      "Bash(curl:*)",
+      "Bash(cmd //c \"taskkill /PID 7940 /F\")",
+      "Bash(cmd //c \"taskkill /PID 10304 /F\")",
+      "Bash(cmd //c \"taskkill /PID 5808 /F\")",
+      "Bash(cmd //c \"taskkill /PID 13424 /F\")",
+      "Bash(cmd //c \"taskkill /PID 20716 /F\")",
+      "Bash(npm start)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(node diagnose-user-orders.js:*)"
+    ]
+  }
+}

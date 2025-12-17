@@ -16,8 +16,9 @@ const verifyToken = require('../authMiddleware');
 const router = express.Router();
 
 /**
- * GET /debug/orders (TEMPORARY - remove after debugging)
+ * GET /debug/orders (TEMPORARY - REMOVE IN PRODUCTION)
  * Diagnoses order data for a user
+ * TODO: Remove this endpoint before deploying to production
  */
 router.get('/debug/orders', verifyToken, async (req, res) => {
     try {
@@ -169,24 +170,88 @@ router.get('/user/activity', verifyToken, async (req, res) => {
         }
         const userEmail = users[0].user_email;
         console.log('User email:', userEmail);
+        console.log('WordPress user ID:', req.userId);
 
-        // Query HPOS tables - one row per ORDER (not per line item)
-        // Filter by customer_id and only completed orders
+        // DEBUG: Check customer lookup mapping
+        const [customerLookup] = await db.query(
+            'SELECT * FROM el1wc_customer_lookup WHERE user_id = ? OR email = ?',
+            [req.userId, userEmail]
+        );
+        console.log('Customer lookup results:', customerLookup);
+
+        // DEBUG: Check orders by billing_email directly
+        const [ordersByEmail] = await db.query(
+            'SELECT id, customer_id, billing_email, status FROM el1wc_orders WHERE billing_email = ? LIMIT 10',
+            [userEmail]
+        );
+        console.log('Orders by billing_email:', ordersByEmail);
+
+        // DEBUG: Check orders by customer_id (WordPress user ID)
+        const [ordersByCustomerId] = await db.query(
+            'SELECT id, customer_id, billing_email, status FROM el1wc_orders WHERE customer_id = ? LIMIT 10',
+            [req.userId]
+        );
+        console.log('Orders by customer_id (WP user ID):', ordersByCustomerId);
+
+        // DEBUG: Check all unique statuses for this user's orders
+        const [userOrderStatuses] = await db.query(
+            'SELECT status, COUNT(*) as count FROM el1wc_orders WHERE billing_email = ? GROUP BY status',
+            [userEmail]
+        );
+        console.log('Order statuses for this user:', userOrderStatuses);
+
+        // DEBUG: Check physical store orders
+        const [physicalOrders] = await db.query(
+            'SELECT id, customer_id, product_name, status FROM el1_physical_store_orders WHERE customer_id = ? LIMIT 5',
+            [req.userId]
+        );
+        console.log('Physical store orders by WP user_id:', physicalOrders);
+
+        // DEBUG: Show ALL physical store orders to see customer_id mapping
+        const [allPhysicalOrders] = await db.query(
+            'SELECT p.id, p.customer_id, p.product_name, u.user_email FROM el1_physical_store_orders p LEFT JOIN el1users u ON p.customer_id = u.ID LIMIT 10'
+        );
+        console.log('ALL physical store orders with user emails:', allPhysicalOrders);
+
+        // DEBUG: Check what user_id fszymik@gmail.com has
+        const [fszymikUser] = await db.query(
+            'SELECT ID, user_email FROM el1users WHERE user_email = ?',
+            ['fszymik@gmail.com']
+        );
+        console.log('fszymik@gmail.com user:', fszymikUser);
+
+        // Query both online orders (HPOS tables) and physical store orders
+        // Uses UNION to combine results, sorted by date descending
+        // COLLATE utf8mb4_unicode_ci ensures collation compatibility between tables
+        // Note: el1wc_orders.customer_id stores WordPress user ID directly (not WC customer ID)
         const query = `
-            SELECT
-                o.id as order_item_id,
-                GROUP_CONCAT(oi.order_item_name SEPARATOR ', ') as product_name,
-                o.date_created_gmt as date_created,
-                SUM(CAST((SELECT meta_value FROM el1woocommerce_order_itemmeta WHERE order_item_id = oi.order_item_id AND meta_key = '_qty' LIMIT 1) AS UNSIGNED)) as product_qty,
-                o.total_amount as product_gross_revenue
-            FROM el1wc_orders o
-            INNER JOIN el1woocommerce_order_items oi ON o.id = oi.order_id AND oi.order_item_type = 'line_item'
-            WHERE o.customer_id = ? AND o.status = 'wc-completed'
-            GROUP BY o.id, o.date_created_gmt, o.total_amount
-            ORDER BY o.date_created_gmt DESC
+            SELECT * FROM (
+                SELECT
+                    o.id as order_item_id,
+                    GROUP_CONCAT(oi.order_item_name SEPARATOR ', ') COLLATE utf8mb4_unicode_ci as product_name,
+                    o.date_created_gmt as date_created,
+                    SUM(CAST((SELECT meta_value FROM el1woocommerce_order_itemmeta WHERE order_item_id = oi.order_item_id AND meta_key = '_qty' LIMIT 1) AS UNSIGNED)) as product_qty,
+                    o.total_amount as product_gross_revenue
+                FROM el1wc_orders o
+                INNER JOIN el1woocommerce_order_items oi ON o.id = oi.order_id AND oi.order_item_type = 'line_item'
+                WHERE o.customer_id = ? AND o.status = 'wc-dostarczone'
+                GROUP BY o.id, o.date_created_gmt, o.total_amount
+
+                UNION ALL
+
+                SELECT
+                    p.id as order_item_id,
+                    p.product_name COLLATE utf8mb4_unicode_ci as product_name,
+                    p.date_created_gmt as date_created,
+                    p.product_qty,
+                    p.total_amount as product_gross_revenue
+                FROM el1_physical_store_orders p
+                WHERE p.customer_id = ? AND p.status = 'completed'
+            ) AS combined_orders
+            ORDER BY date_created DESC
             LIMIT 50
         `;
-        const [orderItems] = await db.query(query, [req.userId]);
+        const [orderItems] = await db.query(query, [req.userId, req.userId]);
         console.log('Found', orderItems.length, 'order items for user');
 
         // Format response to match OrderActivity type
@@ -202,6 +267,8 @@ router.get('/user/activity', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Get activity error:', error.message);
         console.error('Error code:', error.code);
+        console.error('SQL State:', error.sqlState);
+        console.error('Full error:', error);
         res.status(500).json({ message: 'Błąd serwera podczas pobierania aktywności.' });
     }
 });
@@ -209,26 +276,21 @@ router.get('/user/activity', verifyToken, async (req, res) => {
 /**
  * GET /user/savings
  * Fetches user's total savings from orders
+ * Uses HPOS tables (el1wc_orders) with customer_id = WordPress user ID
  */
 router.get('/user/savings', verifyToken, async (req, res) => {
     try {
-        const [users] = await db.query('SELECT user_email FROM el1users WHERE ID = ?', [req.userId]);
-        if (users.length === 0) {
-            return res.status(404).json({ message: 'Nie znaleziono zalogowanego użytkownika.' });
-        }
-        const userEmail = users[0].user_email;
-
-        // Calculate total savings from completed orders with discounts
+        // Query HPOS orders table using customer_id (stores WordPress user ID directly)
+        // Discount is stored in el1wc_orders_meta with key 'discount_total'
         const query = `
-            SELECT 
-                COALESCE(SUM(CAST(discount.meta_value AS DECIMAL(10,2))), 0) as total_savings
-            FROM el1posts o
-            INNER JOIN el1postmeta email_meta ON o.ID = email_meta.post_id AND email_meta.meta_key = '_billing_email'
-            LEFT JOIN el1postmeta discount ON o.ID = discount.post_id AND discount.meta_key = '_cart_discount'
-            WHERE o.post_type = 'shop_order' 
-            AND email_meta.meta_value = ?
+            SELECT
+                COALESCE(SUM(CAST(om.meta_value AS DECIMAL(10,2))), 0) as total_savings
+            FROM el1wc_orders o
+            LEFT JOIN el1wc_orders_meta om ON o.id = om.order_id AND om.meta_key = 'discount_total'
+            WHERE o.customer_id = ?
+            AND o.status IN ('wc-completed', 'wc-dostarczone')
         `;
-        const [result] = await db.query(query, [userEmail]);
+        const [result] = await db.query(query, [req.userId]);
 
         res.json({
             totalSavings: parseFloat(result[0]?.total_savings) || 0
