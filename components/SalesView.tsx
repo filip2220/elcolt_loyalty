@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SaleProduct, Product } from '../types';
 import * as api from '../services/api';
 import { useCart } from '../hooks/useCart';
@@ -7,19 +7,21 @@ import Card from './Card';
 import Button from './Button';
 
 // Sale tag icon
-const SaleTagIcon: React.FC<{ className?: string }> = ({ className }) => (
+const SaleTagIcon: React.FC<{ className?: string }> = React.memo(({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
     </svg>
-);
+));
+SaleTagIcon.displayName = 'SaleTagIcon';
 
 // Product placeholder icon
-const ProductPlaceholderIcon: React.FC<{ className?: string }> = ({ className }) => (
+const ProductPlaceholderIcon: React.FC<{ className?: string }> = React.memo(({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
     </svg>
-);
+));
+ProductPlaceholderIcon.displayName = 'ProductPlaceholderIcon';
 
 // Format price helper
 const formatPrice = (price: string | null): string => {
@@ -61,7 +63,7 @@ interface SaleProductCardProps {
     onClick: () => void;
 }
 
-const SaleProductCard: React.FC<SaleProductCardProps> = ({ product, onClick }) => {
+const SaleProductCard: React.FC<SaleProductCardProps> = React.memo(({ product, onClick }) => {
     const [imageLoaded, setImageLoaded] = useState(false);
     const [imageError, setImageError] = useState(false);
 
@@ -139,10 +141,11 @@ const SaleProductCard: React.FC<SaleProductCardProps> = ({ product, onClick }) =
             </div>
         </Card>
     );
-};
+});
+SaleProductCard.displayName = 'SaleProductCard';
 
 // Main SalesView Component
-const SalesView: React.FC = () => {
+const SalesView: React.FC = React.memo(() => {
     const { addToCart, isInCart, getItemQuantity } = useCart();
     const [publicSales, setPublicSales] = useState<SaleProduct[]>([]);
     const [loading, setLoading] = useState(true);
@@ -170,7 +173,7 @@ const SalesView: React.FC = () => {
         fetchPublicSales();
     }, []);
 
-    const handleProductClick = async (saleProduct: SaleProduct) => {
+    const handleProductClick = useCallback(async (saleProduct: SaleProduct) => {
         // Show modal immediately with sale data
         setSelectedSaleProduct(saleProduct);
         setSelectedProductDetails(null);
@@ -186,15 +189,15 @@ const SalesView: React.FC = () => {
         } finally {
             setLoadingDetails(false);
         }
-    };
+    }, []);
 
-    const handleCloseModal = () => {
+    const handleCloseModal = useCallback(() => {
         setSelectedSaleProduct(null);
         setSelectedProductDetails(null);
         setCurrentImageIndex(0);
-    };
+    }, []);
 
-    const handleAddToCart = async () => {
+    const handleAddToCart = useCallback(async () => {
         if (!selectedSaleProduct) return;
 
         setAddingToCart(true);
@@ -215,7 +218,7 @@ const SalesView: React.FC = () => {
         } finally {
             setAddingToCart(false);
         }
-    };
+    }, [selectedSaleProduct, loadingDetails, selectedProductDetails, addToCart, handleCloseModal]);
 
     if (loading) {
         return (
@@ -504,6 +507,8 @@ const SalesView: React.FC = () => {
             )}
         </div>
     );
-};
+});
+
+SalesView.displayName = 'SalesView';
 
 export default SalesView;

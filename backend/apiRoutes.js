@@ -1,3 +1,10 @@
+/**
+ * ⚠️ DEPRECATED ⚠️
+ * This file is kept for backward compatibility only.
+ * All routes have been migrated to the new modular structure in ./routes/ directory.
+ * The server uses ./routes/index.js by default.
+ * To use this file, set USE_LEGACY_ROUTES=true in environment variables.
+ */
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const wphash = require('wordpress-hash-node');
@@ -212,6 +219,18 @@ const transporter = nodemailer.createTransport({
 
 // --- ROUTES ---
 
+// SECURITY: Cookie options for JWT tokens
+// httpOnly prevents JavaScript access (XSS protection)
+// secure ensures cookies only sent over HTTPS in production
+// sameSite prevents CSRF attacks
+const JWT_COOKIE_OPTIONS = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000, // 1 day in milliseconds
+    path: '/'
+};
+
 /**
  * POST /api/signup
  * Registers a new user, adds them to el1users and el1usermeta, and returns a JWT.
@@ -260,7 +279,12 @@ router.post('/signup', async (req, res) => {
         await connection.commit();
 
         const token = jwt.sign({ userId: newUserId }, process.env.JWT_SECRET, { expiresIn: '1d' });
-        res.status(201).json({ token });
+
+        // SECURITY: Set token as httpOnly cookie
+        res.cookie('jwt_token', token, JWT_COOKIE_OPTIONS);
+
+        // Also return token in body for backward compatibility
+        res.status(201).json({ token, message: 'Rejestracja zakończona pomyślnie.' });
 
     } catch (error) {
         await connection.rollback();
@@ -356,11 +380,60 @@ router.post('/login', async (req, res) => {
         }
 
         const token = jwt.sign({ userId: user.ID }, process.env.JWT_SECRET, { expiresIn: '1d' });
-        res.json({ token });
+
+        // SECURITY: Set token as httpOnly cookie
+        res.cookie('jwt_token', token, JWT_COOKIE_OPTIONS);
+
+        // Also return token in body for backward compatibility
+        res.json({ token, message: 'Zalogowano pomyślnie.' });
 
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ message: 'Błąd serwera podczas logowania.' });
+    }
+});
+
+/**
+ * POST /api/logout
+ * Clears the JWT cookie to log the user out.
+ * Works with or without authentication (always succeeds).
+ */
+router.post('/logout', (req, res) => {
+    // Clear the JWT cookie
+    res.clearCookie('jwt_token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        path: '/'
+    });
+
+    res.json({ message: 'Wylogowano pomyślnie.' });
+});
+
+/**
+ * GET /api/auth/check
+ * Checks if the user is authenticated.
+ * Returns user info if authenticated, 401 if not.
+ * Useful for frontend to verify auth status without exposing token.
+ */
+router.get('/auth/check', verifyToken, async (req, res) => {
+    try {
+        const [users] = await db.query('SELECT ID, display_name, user_email FROM el1users WHERE ID = ?', [req.userId]);
+        if (users.length === 0) {
+            return res.status(401).json({ authenticated: false, message: 'User not found.' });
+        }
+        const user = users[0];
+        res.json({
+            authenticated: true,
+            user: {
+                id: user.ID,
+                name: user.display_name,
+                email: user.user_email
+            }
+        });
+    } catch (error) {
+        console.error('Auth check error:', error);
+        res.status(500).json({ authenticated: false, message: 'Server error.' });
     }
 });
 
@@ -455,46 +528,32 @@ router.get('/user/points', verifyToken, async (req, res) => {
  */
 router.get('/user/activity', verifyToken, async (req, res) => {
     try {
-        // WooCommerce uses a separate customer_id in wc_customer_lookup that maps to WordPress user_id.
-        // We need to find the WooCommerce customer_id first, then use it to query orders.
-        const [customerLookup] = await db.query(
-            'SELECT customer_id, email FROM el1wc_customer_lookup WHERE user_id = ?',
-            [req.userId]
+        // OPTIMIZATION: We search by both User ID and Email in customer_lookup to catch all orders (including guest ones)
+        // without needing a slow JOIN on el1postmeta.
+
+        // 1. Get current user's email
+        const [users] = await db.query('SELECT user_email FROM el1users WHERE ID = ?', [req.userId]);
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'Użytkownik nie istnieje.' });
+        }
+        const userEmail = users[0].user_email;
+
+        // 2. Find all relevant WooCommerce Customer IDs (linked by User ID or Email)
+        const [customers] = await db.query(
+            'SELECT customer_id FROM el1wc_customer_lookup WHERE user_id = ? OR email = ?',
+            [req.userId, userEmail]
         );
 
-        // If no WooCommerce customer record exists, try to find by email
-        let wcCustomerId = null;
-        let userEmail = null;
+        // Extract IDs and filter out any nulls
+        const customerIds = customers.map(c => c.customer_id).filter(id => id);
 
-        if (customerLookup.length > 0) {
-            wcCustomerId = customerLookup[0].customer_id;
-            userEmail = customerLookup[0].email;
-        } else {
-            // Fallback: get email from WordPress users table
-            const [users] = await db.query('SELECT user_email FROM el1users WHERE ID = ?', [req.userId]);
-            if (users.length > 0) {
-                userEmail = users[0].user_email;
-            }
+        if (customerIds.length === 0) {
+            return res.json([]);
         }
 
-        if (!wcCustomerId && !userEmail) {
-            return res.json([]); // No customer record found
-        }
+        // 3. Query orders efficiently using the found Customer IDs
+        const placeholders = customerIds.map(() => '?').join(',');
 
-        // Build query dynamically based on available identifiers to avoid matching unrelated orders
-        const conditions = [];
-        const params = [];
-
-        if (wcCustomerId) {
-            conditions.push('lookup.customer_id = ?');
-            params.push(wcCustomerId);
-        }
-        if (userEmail) {
-            conditions.push('pm.meta_value = ?');
-            params.push(userEmail);
-        }
-
-        // Query orders using the WooCommerce customer_id (primary) or billing email (fallback)
         const query = `
             SELECT DISTINCT
                 lookup.order_item_id,
@@ -504,12 +563,12 @@ router.get('/user/activity', verifyToken, async (req, res) => {
                 COALESCE(posts.post_title, 'Product not found') AS product_name
             FROM el1wc_order_product_lookup AS lookup
             LEFT JOIN el1posts AS posts ON lookup.product_id = posts.ID
-            LEFT JOIN el1postmeta AS pm ON lookup.order_id = pm.post_id AND pm.meta_key = '_billing_email'
-            WHERE ${conditions.join(' OR ')}
+            WHERE lookup.customer_id IN (${placeholders})
             ORDER BY lookup.date_created DESC
-            LIMIT 10;
+            LIMIT 20;
         `;
-        const [activity] = await db.query(query, params);
+
+        const [activity] = await db.query(query, customerIds);
         res.json(activity);
     } catch (error) {
         console.error('Get activity error:', error);
@@ -912,7 +971,71 @@ router.post('/reset-password', async (req, res) => {
  * GET /api/image-proxy
  * Proxies images from WordPress to avoid CORS and hosting issues.
  * Query params: url - The image URL to proxy
+ * 
+ * SECURITY: Only allows requests to whitelisted domains to prevent SSRF attacks.
  */
+
+// Whitelist of allowed image domains (prevents SSRF attacks)
+const ALLOWED_IMAGE_DOMAINS = [
+    'etaktyczne.pl',
+    'elcolt.pl',
+    'www.etaktyczne.pl',
+    'www.elcolt.pl',
+    // cPanel technical domains that may still appear in database
+    /^[a-z0-9-]+\.[0-9-]+\.cpanel\.site$/i,
+];
+
+// Check if hostname matches an allowed domain
+function isAllowedImageDomain(hostname) {
+    const lowerHostname = hostname.toLowerCase();
+
+    for (const allowed of ALLOWED_IMAGE_DOMAINS) {
+        if (typeof allowed === 'string') {
+            // Exact match or subdomain match
+            if (lowerHostname === allowed || lowerHostname.endsWith('.' + allowed)) {
+                return true;
+            }
+        } else if (allowed instanceof RegExp) {
+            // Regex match
+            if (allowed.test(lowerHostname)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Check for private/internal IP addresses (blocks SSRF to internal networks)
+function isPrivateOrInternalHost(hostname) {
+    // Block localhost variations
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+        return true;
+    }
+
+    // Block private IP ranges
+    const privateIpPatterns = [
+        /^10\./,                          // 10.0.0.0/8
+        /^172\.(1[6-9]|2[0-9]|3[01])\./,  // 172.16.0.0/12
+        /^192\.168\./,                     // 192.168.0.0/16
+        /^169\.254\./,                     // Link-local
+        /^0\./,                            // 0.0.0.0/8
+        /^127\./,                          // Loopback
+    ];
+
+    for (const pattern of privateIpPatterns) {
+        if (pattern.test(hostname)) {
+            return true;
+        }
+    }
+
+    // Block AWS/GCP/Azure metadata endpoints
+    if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
+        return true;
+    }
+
+    return false;
+}
+
 router.get('/image-proxy', async (req, res) => {
     const https = require('https');
     const http = require('http');
@@ -930,6 +1053,18 @@ router.get('/image-proxy', async (req, res) => {
             parsedUrl = new URL(imageUrl);
         } catch {
             return res.status(400).json({ message: 'Invalid URL' });
+        }
+
+        // SECURITY: Block private/internal addresses (SSRF protection)
+        if (isPrivateOrInternalHost(parsedUrl.hostname)) {
+            console.warn(`[SECURITY] Blocked image proxy request to internal address: ${parsedUrl.hostname}`);
+            return res.status(403).json({ message: 'Access to internal addresses is not allowed' });
+        }
+
+        // SECURITY: Only allow whitelisted domains
+        if (!isAllowedImageDomain(parsedUrl.hostname)) {
+            console.warn(`[SECURITY] Blocked image proxy request to non-whitelisted domain: ${parsedUrl.hostname}`);
+            return res.status(403).json({ message: 'Domain not allowed' });
         }
 
         // Choose http or https based on URL protocol
@@ -998,8 +1133,15 @@ router.get('/image-proxy', async (req, res) => {
  * GET /api/debug/images/:productId
  * Debug endpoint to check image data for a product.
  * Returns raw database data for troubleshooting image loading issues.
+ * 
+ * SECURITY: Disabled in production to prevent information disclosure.
  */
 router.get('/debug/images/:productId', async (req, res) => {
+    // SECURITY: Disable debug endpoints in production
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).json({ message: 'Not found' });
+    }
+
     try {
         const productId = parseInt(req.params.productId);
 
@@ -1659,6 +1801,321 @@ router.post('/checkout/create-order', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Create checkout order error:', error);
         res.status(500).json({ message: 'Błąd serwera podczas tworzenia zamówienia.' });
+    }
+});
+
+// =====================================================
+// ACCOUNT MANAGEMENT ENDPOINTS
+// =====================================================
+
+/**
+ * DELETE /api/user/account
+ * Permanently deletes the user's account and all associated data.
+ * Required by Google Play and iOS App Store policies.
+ * Protected: Requires authentication token.
+ * 
+ * This will:
+ * 1. Delete user from el1users (WordPress users table)
+ * 2. Delete all user metadata from el1usermeta
+ * 3. Delete loyalty data from el1wlr_users (WPLoyalty)
+ * 4. Optionally: Log the deletion for audit purposes
+ */
+router.delete('/user/account', verifyToken, async (req, res) => {
+    const connection = await db.pool.getConnection();
+
+    try {
+        const userId = req.userId;
+
+        console.log(`[ACCOUNT DELETION] Starting deletion for user ID: ${userId}`);
+
+        // Get user info before deletion for logging
+        const [userInfo] = await connection.execute(
+            'SELECT user_email, display_name FROM el1users WHERE ID = ?',
+            [userId]
+        );
+
+        if (userInfo.length === 0) {
+            return res.status(404).json({ message: 'Użytkownik nie znaleziony.' });
+        }
+
+        const userEmail = userInfo[0].user_email;
+        const displayName = userInfo[0].display_name;
+
+        await connection.beginTransaction();
+
+        // 1. Delete user metadata from el1usermeta
+        const [metaDeleteResult] = await connection.execute(
+            'DELETE FROM el1usermeta WHERE user_id = ?',
+            [userId]
+        );
+        console.log(`[ACCOUNT DELETION] Deleted ${metaDeleteResult.affectedRows} rows from el1usermeta`);
+
+        // 2. Delete loyalty data from el1wlr_users (WPLoyalty)
+        try {
+            const [loyaltyDeleteResult] = await connection.execute(
+                'DELETE FROM el1wlr_users WHERE user_email = ?',
+                [userEmail]
+            );
+            console.log(`[ACCOUNT DELETION] Deleted ${loyaltyDeleteResult.affectedRows} rows from el1wlr_users`);
+        } catch (loyaltyError) {
+            // Loyalty table might not exist or have different structure
+            console.log('[ACCOUNT DELETION] Could not delete from loyalty table (may not exist):', loyaltyError.message);
+        }
+
+        // 3. Delete loyalty transactions from el1wlr_earn_campaign_transaction (if exists)
+        try {
+            const [tranDeleteResult] = await connection.execute(
+                'DELETE FROM el1wlr_earn_campaign_transaction WHERE user_email = ?',
+                [userEmail]
+            );
+            console.log(`[ACCOUNT DELETION] Deleted ${tranDeleteResult.affectedRows} rows from el1wlr_earn_campaign_transaction`);
+        } catch (tranError) {
+            console.log('[ACCOUNT DELETION] Could not delete from transactions table (may not exist):', tranError.message);
+        }
+
+        // 4. Delete app login tokens
+        try {
+            const [tokenDeleteResult] = await connection.execute(
+                'DELETE FROM el1app_login_tokens WHERE user_id = ?',
+                [userId]
+            );
+            console.log(`[ACCOUNT DELETION] Deleted ${tokenDeleteResult.affectedRows} rows from el1app_login_tokens`);
+        } catch (tokenError) {
+            console.log('[ACCOUNT DELETION] Could not delete from login tokens table (may not exist):', tokenError.message);
+        }
+
+        // 5. Delete password reset tokens
+        try {
+            const [resetDeleteResult] = await connection.execute(
+                'DELETE FROM el1password_reset_tokens WHERE user_id = ?',
+                [userId]
+            );
+            console.log(`[ACCOUNT DELETION] Deleted ${resetDeleteResult.affectedRows} rows from el1password_reset_tokens`);
+        } catch (resetError) {
+            console.log('[ACCOUNT DELETION] Could not delete from password reset table (may not exist):', resetError.message);
+        }
+
+        // 6. Finally, delete the user from el1users
+        const [userDeleteResult] = await connection.execute(
+            'DELETE FROM el1users WHERE ID = ?',
+            [userId]
+        );
+        console.log(`[ACCOUNT DELETION] Deleted ${userDeleteResult.affectedRows} rows from el1users`);
+
+        if (userDeleteResult.affectedRows === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: 'Nie udało się usunąć konta.' });
+        }
+
+        await connection.commit();
+
+        console.log(`[ACCOUNT DELETION] Successfully deleted account for: ${displayName} (${userEmail})`);
+
+        // Return success
+        res.json({
+            message: 'Konto zostało pomyślnie usunięte.',
+            deleted: true
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error('[ACCOUNT DELETION] Error:', error);
+        res.status(500).json({ message: 'Błąd serwera podczas usuwania konta. Spróbuj ponownie później.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// =====================================================
+// PUSH NOTIFICATION ENDPOINTS
+// =====================================================
+
+/**
+ * POST /api/push/register
+ * Register a device token for push notifications
+ * Protected: Requires authentication token.
+ * 
+ * Body: { token: string, platform: 'android' | 'ios' | 'web' }
+ */
+router.post('/push/register', verifyToken, async (req, res) => {
+    const { token, platform } = req.body;
+
+    if (!token || !platform) {
+        return res.status(400).json({ message: 'Token i platforma są wymagane.' });
+    }
+
+    if (!['android', 'ios', 'web'].includes(platform)) {
+        return res.status(400).json({ message: 'Nieprawidłowa platforma.' });
+    }
+
+    try {
+        const userId = req.userId;
+
+        // Check if token already exists for this user
+        const [existingTokens] = await db.query(
+            'SELECT id FROM el1push_tokens WHERE user_id = ? AND token = ?',
+            [userId, token]
+        );
+
+        if (existingTokens.length > 0) {
+            // Token already registered, update the timestamp
+            await db.query(
+                'UPDATE el1push_tokens SET platform = ?, updated_at = NOW() WHERE user_id = ? AND token = ?',
+                [platform, userId, token]
+            );
+            console.log(`[PUSH] Updated existing token for user ${userId}`);
+        } else {
+            // Insert new token
+            await db.query(
+                'INSERT INTO el1push_tokens (user_id, token, platform, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())',
+                [userId, token, platform]
+            );
+            console.log(`[PUSH] Registered new token for user ${userId}`);
+        }
+
+        res.json({ message: 'Token zarejestrowany pomyślnie.' });
+
+    } catch (error) {
+        // If table doesn't exist, create it
+        if (error.code === 'ER_NO_SUCH_TABLE') {
+            try {
+                await db.query(`
+                    CREATE TABLE IF NOT EXISTS el1push_tokens (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id BIGINT UNSIGNED NOT NULL,
+                        token VARCHAR(500) NOT NULL,
+                        platform ENUM('android', 'ios', 'web') NOT NULL,
+                        created_at DATETIME NOT NULL,
+                        updated_at DATETIME NOT NULL,
+                        UNIQUE KEY unique_user_token (user_id, token),
+                        INDEX idx_user_id (user_id),
+                        FOREIGN KEY (user_id) REFERENCES el1users(ID) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                `);
+                console.log('[PUSH] Created el1push_tokens table');
+
+                // Retry the insert
+                await db.query(
+                    'INSERT INTO el1push_tokens (user_id, token, platform, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())',
+                    [req.userId, token, platform]
+                );
+                return res.json({ message: 'Token zarejestrowany pomyślnie.' });
+            } catch (createError) {
+                console.error('[PUSH] Error creating table:', createError);
+            }
+        }
+
+        console.error('[PUSH] Registration error:', error);
+        res.status(500).json({ message: 'Błąd podczas rejestracji tokena.' });
+    }
+});
+
+/**
+ * POST /api/push/unregister
+ * Remove a device token from push notifications
+ * Protected: Requires authentication token.
+ * 
+ * Body: { token: string }
+ */
+router.post('/push/unregister', verifyToken, async (req, res) => {
+    const { token } = req.body;
+
+    if (!token) {
+        return res.status(400).json({ message: 'Token jest wymagany.' });
+    }
+
+    try {
+        const userId = req.userId;
+
+        const [result] = await db.query(
+            'DELETE FROM el1push_tokens WHERE user_id = ? AND token = ?',
+            [userId, token]
+        );
+
+        if (result.affectedRows > 0) {
+            console.log(`[PUSH] Unregistered token for user ${userId}`);
+            res.json({ message: 'Token usunięty pomyślnie.' });
+        } else {
+            res.status(404).json({ message: 'Token nie znaleziony.' });
+        }
+
+    } catch (error) {
+        console.error('[PUSH] Unregistration error:', error);
+        res.status(500).json({ message: 'Błąd podczas usuwania tokena.' });
+    }
+});
+
+/**
+ * POST /api/push/send
+ * Send a push notification to a specific user or all users
+ * Protected: Requires admin authentication.
+ * 
+ * Body: { 
+ *   userId?: number,  // If not provided, sends to all users
+ *   title: string, 
+ *   body: string,
+ *   data?: object     // Custom data payload
+ * }
+ * 
+ * NOTE: This endpoint requires Firebase Admin SDK to be configured.
+ * The actual sending logic needs to be implemented once Firebase is set up.
+ */
+router.post('/push/send', verifyToken, async (req, res) => {
+    // TODO: Add admin role check here
+    // For now, this is a placeholder that shows what tokens would be targeted
+
+    const { userId, title, body, data } = req.body;
+
+    if (!title || !body) {
+        return res.status(400).json({ message: 'Tytuł i treść są wymagane.' });
+    }
+
+    try {
+        let tokens = [];
+
+        if (userId) {
+            // Get tokens for specific user
+            const [result] = await db.query(
+                'SELECT token, platform FROM el1push_tokens WHERE user_id = ?',
+                [userId]
+            );
+            tokens = result;
+        } else {
+            // Get all tokens
+            const [result] = await db.query(
+                'SELECT token, platform FROM el1push_tokens'
+            );
+            tokens = result;
+        }
+
+        if (tokens.length === 0) {
+            return res.status(404).json({ message: 'Nie znaleziono żadnych tokenów.' });
+        }
+
+        // TODO: Implement Firebase Admin SDK sending here
+        // Example with firebase-admin:
+        // const admin = require('firebase-admin');
+        // const messaging = admin.messaging();
+        // 
+        // const message = {
+        //     notification: { title, body },
+        //     data: data || {},
+        //     tokens: tokens.map(t => t.token)
+        // };
+        // 
+        // const response = await messaging.sendEachForMulticast(message);
+
+        console.log(`[PUSH] Would send notification to ${tokens.length} devices:`, { title, body, data });
+
+        res.json({
+            message: `Powiadomienie zostałoby wysłane do ${tokens.length} urządzeń.`,
+            tokenCount: tokens.length,
+            note: 'Firebase Admin SDK not configured - this is a placeholder response'
+        });
+
+    } catch (error) {
+        console.error('[PUSH] Send error:', error);
+        res.status(500).json({ message: 'Błąd podczas wysyłania powiadomienia.' });
     }
 });
 

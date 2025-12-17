@@ -90,18 +90,19 @@ const cleanPhoneNumberForQR = (phone: string): string => {
 };
 
 const QRCodeView: React.FC = () => {
-    const { token } = useAuth();
+    const { token, isAuthenticated } = useAuth();
     const [qrData, setQrData] = useState<{ name: string; phone: string | null } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchQRData = async () => {
-            if (!token) return;
+            if (!isAuthenticated) return;
             try {
                 setLoading(true);
                 setError(null);
-                const data = await api.getQRCodeData(token);
+                const authToken = token || 'cookie-auth';
+                const data = await api.getQRCodeData(authToken);
                 setQrData(data);
             } catch (err: any) {
                 setError(err.message || 'Nie udało się załadować danych.');
@@ -110,7 +111,7 @@ const QRCodeView: React.FC = () => {
             }
         };
         fetchQRData();
-    }, [token]);
+    }, [token, isAuthenticated]);
 
     // Loading state
     if (loading) {

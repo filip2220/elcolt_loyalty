@@ -6,7 +6,7 @@ import Spinner from './Spinner';
 import { formatPolishCurrency } from '../utils/format';
 
 // Savings/wallet icon
-const SavingsIcon = () => (
+const SavingsIcon = React.memo(() => (
     <svg className="w-10 h-10" viewBox="0 0 40 40" fill="none">
         {/* Coin stack representation */}
         <ellipse cx="20" cy="28" rx="12" ry="4" className="text-olive-500 fill-current opacity-40" />
@@ -17,21 +17,24 @@ const SavingsIcon = () => (
         {/* Dollar sign on top coin */}
         <text x="20" y="15" textAnchor="middle" className="text-olive-600 fill-current" fontSize="8" fontWeight="bold">PLN</text>
     </svg>
-);
+));
+SavingsIcon.displayName = 'SavingsIcon';
 
-const TotalSavingsCard: React.FC = () => {
-    const { token } = useAuth();
+const TotalSavingsCard: React.FC = React.memo(() => {
+    const { token, isAuthenticated } = useAuth();
     const [savings, setSavings] = useState<number>(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchSavings = async () => {
-            if (!token) return;
+            if (!isAuthenticated) return;
+
             try {
                 setLoading(true);
                 setError(null);
-                const result = await api.getTotalSavings(token);
+                const authToken = token || 'cookie-auth';
+                const result = await api.getTotalSavings(authToken);
                 setSavings(result.totalSavings);
             } catch (err: any) {
                 console.error("Failed to fetch total savings", err);
@@ -42,7 +45,7 @@ const TotalSavingsCard: React.FC = () => {
         };
 
         fetchSavings();
-    }, [token]);
+    }, [token, isAuthenticated]);
 
     const renderContent = () => {
         if (loading) {
@@ -68,7 +71,7 @@ const TotalSavingsCard: React.FC = () => {
     return (
         <Card className="relative overflow-hidden bg-gradient-to-br from-olive-600/20 via-slate-900 to-slate-900 border-olive-600/30">
             {/* Decorative pattern */}
-            <div 
+            <div
                 className="absolute inset-0 opacity-5"
                 style={{
                     backgroundImage: `repeating-linear-gradient(
@@ -80,7 +83,7 @@ const TotalSavingsCard: React.FC = () => {
                     )`,
                 }}
             />
-            
+
             <div className="relative text-center">
                 <div className="flex justify-center items-center mb-2">
                     <SavingsIcon />
@@ -92,6 +95,8 @@ const TotalSavingsCard: React.FC = () => {
             </div>
         </Card>
     );
-};
+});
+
+TotalSavingsCard.displayName = 'TotalSavingsCard';
 
 export default TotalSavingsCard;

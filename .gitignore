@@ -52,3 +52,26 @@ backups/
 *.njsproj
 *.sln
 *.sw?
+
+# Capacitor / Mobile build artifacts
+# Keep android/ and ios/ directories in git, but ignore build outputs
+android/app/build/
+android/.gradle/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+android/*.iml
+android/local.properties
+
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Mobile signing keys (NEVER commit these!)
+*.keystore
+*.jks
+android/app/*.keystore
+android/app/*.jks
+ios/*.mobileprovision
+ios/*.p12

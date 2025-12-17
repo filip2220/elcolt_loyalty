@@ -6,12 +6,12 @@ import Card from './Card';
 import Spinner from './Spinner';
 import { formatPolishDate, formatPolishCurrency } from '../utils/format';
 
-const ActivityItem: React.FC<{ item: OrderActivity; index: number }> = ({ item, index }) => {
+const ActivityItem: React.FC<{ item: OrderActivity; index: number }> = React.memo(({ item, index }) => {
     const date = new Date(item.date_created);
     const formattedDate = formatPolishDate(date);
 
     return (
-        <li 
+        <li
             className={`
                 flex flex-col sm:flex-row justify-between sm:items-center gap-2 sm:gap-4 py-3 sm:py-4 px-3 sm:px-4 -mx-3 sm:-mx-4
                 transition-colors duration-200
@@ -26,7 +26,7 @@ const ActivityItem: React.FC<{ item: OrderActivity; index: number }> = ({ item, 
                         <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
                 </div>
-                
+
                 <div className="flex-1 min-w-0">
                     <p className="font-semibold text-cream text-sm sm:text-base truncate">{item.product_name}</p>
                     <p className="text-xs sm:text-sm text-stone-500 mt-0.5 flex flex-wrap items-center gap-x-2">
@@ -41,7 +41,7 @@ const ActivityItem: React.FC<{ item: OrderActivity; index: number }> = ({ item, 
                     </p>
                 </div>
             </div>
-            
+
             <div className="text-right sm:text-right pl-12 sm:pl-0">
                 <p className="font-mono font-semibold text-forest-500 text-base sm:text-lg">
                     {formatPolishCurrency(item.product_gross_revenue)}
@@ -49,21 +49,32 @@ const ActivityItem: React.FC<{ item: OrderActivity; index: number }> = ({ item, 
             </div>
         </li>
     );
-};
+});
+ActivityItem.displayName = 'ActivityItem';
 
-const ActivityView: React.FC = () => {
-    const { token } = useAuth();
+const ActivityView: React.FC = React.memo(() => {
+    const { token, isAuthenticated } = useAuth();
     const [activity, setActivity] = useState<OrderActivity[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchActivity = async () => {
-            if (!token) return;
+            if (!isAuthenticated) {
+                // If not authenticated, stop loading (or let parent handle redirect)
+                // But generally we shouldn't get here if protected. 
+                // However, we must ensure we don't hang in loading state if auth fails/is pending.
+                // Assuming useAuth.loading handled by parent or layout.
+                return;
+            }
+
             try {
                 setLoading(true);
                 setError(null);
-                const userActivity = await api.getUserActivity(token);
+                // Use the token if available, otherwise use a placeholder for cookie-based auth
+                // The api service handles credentials: 'include' for cookies.
+                const authToken = token || 'cookie-auth';
+                const userActivity = await api.getUserActivity(authToken);
                 setActivity(userActivity);
             } catch (err: any) {
                 console.error("Failed to fetch activity", err);
@@ -74,7 +85,7 @@ const ActivityView: React.FC = () => {
         };
 
         fetchActivity();
-    }, [token]);
+    }, [token, isAuthenticated]);
 
     const renderContent = () => {
         if (loading) {
@@ -131,7 +142,7 @@ const ActivityView: React.FC = () => {
                 </h1>
                 <p className="text-stone-500 text-sm sm:text-base mt-1">Twoje ostatnie transakcje</p>
             </div>
-            
+
             {/* Activity summary if we have data */}
             {!loading && !error && activity.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -147,13 +158,15 @@ const ActivityView: React.FC = () => {
                     </div>
                 </div>
             )}
-            
+
             {/* Activity list */}
             <Card>
                 {renderContent()}
             </Card>
         </div>
     );
-};
+});
+
+ActivityView.displayName = 'ActivityView';
 
 export default ActivityView;

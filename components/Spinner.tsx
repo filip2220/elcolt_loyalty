@@ -4,7 +4,7 @@ interface SpinnerProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-const Spinner: React.FC<SpinnerProps> = ({ size = 'md' }) => {
+const Spinner: React.FC<SpinnerProps> = React.memo(({ size = 'md' }) => {
   const sizeClasses = {
     sm: 'h-5 w-5',
     md: 'h-8 w-8',
@@ -40,6 +40,9 @@ const Spinner: React.FC<SpinnerProps> = ({ size = 'md' }) => {
       </div>
     </div>
   );
-};
+});
+
+Spinner.displayName = 'Spinner';
 
 export default Spinner;
+

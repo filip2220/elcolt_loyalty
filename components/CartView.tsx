@@ -17,20 +17,22 @@ const formatPrice = (price: string | null): string => {
 };
 
 // Cart icon
-const CartIcon: React.FC<{ className?: string }> = ({ className }) => (
+const CartIcon: React.FC<{ className?: string }> = React.memo(({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
     </svg>
-);
+));
+CartIcon.displayName = 'CartIcon';
 
 // Product placeholder icon
-const ProductPlaceholderIcon: React.FC<{ className?: string }> = ({ className }) => (
+const ProductPlaceholderIcon: React.FC<{ className?: string }> = React.memo(({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
     </svg>
-);
+));
+ProductPlaceholderIcon.displayName = 'ProductPlaceholderIcon';
 
-const CartView: React.FC = () => {
+const CartView: React.FC = React.memo(() => {
     const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
     const { user, token } = useAuth();
     const [checkingOut, setCheckingOut] = useState(false);
@@ -296,7 +298,9 @@ const CartView: React.FC = () => {
             )}
         </div>
     );
-};
+});
+
+CartView.displayName = 'CartView';
 
 export default CartView;
 

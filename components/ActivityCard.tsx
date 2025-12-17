@@ -6,7 +6,7 @@ import Card from './Card';
 import Spinner from './Spinner';
 import { formatPolishDate, formatPolishCurrency } from '../utils/format';
 
-const ActivityItem: React.FC<{ item: OrderActivity; isLast: boolean }> = ({ item, isLast }) => {
+const ActivityItem: React.FC<{ item: OrderActivity; isLast: boolean }> = React.memo(({ item, isLast }) => {
     const date = new Date(item.date_created);
     const formattedDate = formatPolishDate(date);
 
@@ -28,21 +28,24 @@ const ActivityItem: React.FC<{ item: OrderActivity; isLast: boolean }> = ({ item
             </div>
         </li>
     );
-};
+});
+
+ActivityItem.displayName = 'ActivityItem';
 
 const ActivityCard: React.FC = () => {
-    const { token } = useAuth();
+    const { token, isAuthenticated } = useAuth();
     const [activity, setActivity] = useState<OrderActivity[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchActivity = async () => {
-            if (!token) return;
+            if (!isAuthenticated) return;
             try {
                 setLoading(true);
                 setError(null);
-                const userActivity = await api.getUserActivity(token);
+                const authToken = token || 'cookie-auth';
+                const userActivity = await api.getUserActivity(authToken);
                 setActivity(userActivity);
             } catch (err: any) {
                 console.error("Failed to fetch activity", err);
@@ -53,7 +56,7 @@ const ActivityCard: React.FC = () => {
         };
 
         fetchActivity();
-    }, [token]);
+    }, [token, isAuthenticated]);
 
     const renderContent = () => {
         if (loading) {
@@ -78,9 +81,9 @@ const ActivityCard: React.FC = () => {
         return (
             <ul>
                 {activity.map((item, index) => (
-                    <ActivityItem 
-                        key={item.order_item_id} 
-                        item={item} 
+                    <ActivityItem
+                        key={item.order_item_id}
+                        item={item}
                         isLast={index === activity.length - 1}
                     />
                 ))}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { AppOffer, Product, ApplicableProduct } from '../types';
 import * as api from '../services/api';
@@ -40,7 +40,7 @@ interface AppOfferCardProps {
     onProductClick: (product: ApplicableProduct) => void;
 }
 
-const AppOfferCard: React.FC<AppOfferCardProps> = ({ offer, onRedeem, isRedeeming, userPoints, onProductClick }) => {
+const AppOfferCard: React.FC<AppOfferCardProps> = React.memo(({ offer, onRedeem, isRedeeming, userPoints, onProductClick }) => {
     const getDiscountLabel = () => {
         if (offer.discount_type === 'percent') {
             return `${offer.discount_value}% zniżki`;
@@ -190,10 +190,12 @@ const AppOfferCard: React.FC<AppOfferCardProps> = ({ offer, onRedeem, isRedeemin
             </div>
         </Card>
     );
-};
+});
 
-const RewardsView: React.FC = () => {
-    const { token, points, updatePoints, level } = useAuth();
+AppOfferCard.displayName = 'AppOfferCard';
+
+const RewardsView: React.FC = React.memo(() => {
+    const { token, points, updatePoints, level, isAuthenticated } = useAuth();
     const [offers, setOffers] = useState<AppOffer[]>([]);
     const [loading, setLoading] = useState(true);
     const [redeemingId, setRedeemingId] = useState<number | null>(null);
@@ -221,7 +223,7 @@ const RewardsView: React.FC = () => {
         fetchOffers();
     }, []);
 
-    const handleProductClick = async (product: ApplicableProduct) => {
+    const handleProductClick = useCallback(async (product: ApplicableProduct) => {
         if (product.isCategory) return;
 
         setSelectedProduct(product);
@@ -240,21 +242,22 @@ const RewardsView: React.FC = () => {
         } finally {
             setLoadingProductDetails(false);
         }
-    };
+    }, []);
 
-    const handleCloseModal = () => {
+    const handleCloseModal = useCallback(() => {
         setSelectedProduct(null);
         setProductDetails(null);
         setCurrentImageIndex(0);
-    };
+    }, []);
 
-    const handleRedeem = async (offerId: number) => {
-        if (!token) return;
+    const handleRedeem = useCallback(async (offerId: number) => {
+        if (!isAuthenticated) return;
         setRedeemingId(offerId);
         setError(null);
         setSuccess(null);
         try {
-            const result = await api.redeemReward(token, offerId);
+            const authToken = token || 'cookie-auth';
+            const result = await api.redeemReward(authToken, offerId);
             updatePoints(result.newPoints);
             setSuccess({ message: result.message, coupon: result.coupon });
         } catch (err: any) {
@@ -262,7 +265,7 @@ const RewardsView: React.FC = () => {
         } finally {
             setRedeemingId(null);
         }
-    };
+    }, [token, isAuthenticated, updatePoints]);
 
     if (loading) {
         return (
@@ -576,7 +579,9 @@ const RewardsView: React.FC = () => {
             )}
         </div>
     );
-};
+});
+
+RewardsView.displayName = 'RewardsView';
 
 export default RewardsView;
 

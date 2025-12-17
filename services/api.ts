@@ -52,6 +52,7 @@ export const signup = async (data: SignupData): Promise<{ token: string }> => {
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include', // SECURITY: Send/receive httpOnly cookies
     body: JSON.stringify(data),
   });
   return handleResponse(response);
@@ -69,9 +70,40 @@ export const login = async (identifier: string, password: string): Promise<{ tok
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include', // SECURITY: Send/receive httpOnly cookies
     body: JSON.stringify({ identifier, password }),
   });
   return handleResponse(response);
+};
+
+/**
+ * Logout the current user
+ * Clears the httpOnly JWT cookie on the server
+ */
+export const logout = async (): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/logout`, {
+    method: 'POST',
+    credentials: 'include', // SECURITY: Send httpOnly cookies for logout
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Check if the user is authenticated
+ * Uses httpOnly cookies - no token needed
+ */
+export const checkAuth = async (): Promise<{ authenticated: boolean; user?: User }> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/check`, {
+      credentials: 'include', // SECURITY: Send httpOnly cookies
+    });
+    if (!response.ok) {
+      return { authenticated: false };
+    }
+    return response.json();
+  } catch {
+    return { authenticated: false };
+  }
 };
 
 export const getUserProfile = async (token: string): Promise<User> => {
@@ -79,6 +111,7 @@ export const getUserProfile = async (token: string): Promise<User> => {
     headers: {
       'Authorization': `Bearer ${token}`,
     },
+    credentials: 'include', // SECURITY: Also try httpOnly cookies
   });
   return handleResponse(response);
 };
@@ -88,6 +121,7 @@ export const getLoyaltyData = async (token: string): Promise<LoyaltyData> => {
     headers: {
       'Authorization': `Bearer ${token}`,
     },
+    credentials: 'include', // SECURITY: Also try httpOnly cookies
   });
   return handleResponse(response); // The API now returns { points: number, level: Level }
 };
@@ -97,6 +131,7 @@ export const getUserActivity = async (token: string): Promise<OrderActivity[]> =
     headers: {
       'Authorization': `Bearer ${token}`,
     },
+    credentials: 'include', // SECURITY: Also try httpOnly cookies
   });
   return handleResponse(response);
 };
@@ -115,6 +150,7 @@ export const redeemReward = async (token: string, rewardId: number): Promise<Red
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
+    credentials: 'include', // SECURITY: Also try httpOnly cookies
     body: JSON.stringify({ rewardId }),
   });
   return handleResponse(response);
@@ -130,6 +166,7 @@ export const getTotalSavings = async (token: string): Promise<{ totalSavings: nu
     headers: {
       'Authorization': `Bearer ${token}`,
     },
+    credentials: 'include', // SECURITY: Also try httpOnly cookies
   });
   return handleResponse(response);
 };
@@ -174,6 +211,7 @@ export const getQRCodeData = async (token: string): Promise<QRCodeData> => {
     headers: {
       'Authorization': `Bearer ${token}`,
     },
+    credentials: 'include', // SECURITY: Also try httpOnly cookies
   });
   return handleResponse(response);
 };
@@ -258,6 +296,7 @@ export const createCheckout = async (
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
+    credentials: 'include', // SECURITY: Also try httpOnly cookies
     body: JSON.stringify({ items }),
   });
   return handleResponse(response);
@@ -271,8 +310,74 @@ export const createOrder = async (token: string, orderData: import('../types').C
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
+    credentials: 'include', // SECURITY: Also try httpOnly cookies
     body: JSON.stringify(orderData),
   });
   return handleResponse(response);
 };
 
+// =====================================================
+// ACCOUNT MANAGEMENT API FUNCTIONS
+// =====================================================
+
+/**
+ * Delete user account
+ * This will permanently delete the user's account and all associated data
+ * @param token - JWT authentication token
+ */
+export const deleteAccount = async (token: string): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/user/account`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  return handleResponse(response);
+};
+
+// =====================================================
+// PUSH NOTIFICATION API FUNCTIONS
+// =====================================================
+
+/**
+ * Register a device token for push notifications
+ * @param token - JWT authentication token
+ * @param pushToken - Device push token from FCM/APNs
+ * @param platform - Device platform (android, ios, web)
+ */
+export const registerPushToken = async (
+  token: string,
+  pushToken: string,
+  platform: 'android' | 'ios' | 'web'
+): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/push/register`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token: pushToken, platform }),
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Unregister a device from push notifications
+ * @param token - JWT authentication token
+ * @param pushToken - Device push token to remove
+ */
+export const unregisterPushToken = async (
+  token: string,
+  pushToken: string
+): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/push/unregister`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token: pushToken }),
+  });
+  return handleResponse(response);
+};
